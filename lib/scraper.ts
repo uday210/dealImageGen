@@ -1,6 +1,7 @@
 import puppeteer from "puppeteer-core";
 
 const CHROME_PATH =
+  process.env.CHROME_PATH ||
   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 
 export interface SavingsItem {
@@ -34,7 +35,7 @@ export async function scrapeProduct(url: string): Promise<ProductData> {
   const browser = await puppeteer.launch({
     executablePath: CHROME_PATH,
     headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
   });
 
   try {

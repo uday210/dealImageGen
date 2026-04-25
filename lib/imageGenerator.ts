@@ -2,6 +2,7 @@ import puppeteer from "puppeteer-core";
 import { ProductData } from "./scraper";
 
 const CHROME_PATH =
+  process.env.CHROME_PATH ||
   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 
 export type TemplateStyle =
@@ -524,7 +525,7 @@ export async function generateImage(
   const browser = await puppeteer.launch({
     executablePath: CHROME_PATH,
     headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
   });
 
   try {
