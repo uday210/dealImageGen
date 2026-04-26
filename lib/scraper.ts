@@ -70,15 +70,15 @@ export async function scrapeProduct(url: string, cookieString?: string): Promise
     );
     await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
 
-    // Rewrite to mobile subdomain for cleaner page structure
-    const targetUrl = url.replace(/^https?:\/\/(www\.)?amazon\.in/, "https://m.amazon.in");
-
     // Inject Amazon login cookies if provided — enables coupon/personalised offer scraping
     if (cookieString?.trim()) {
       const cookies = parseCookieString(cookieString);
       if (cookies.length > 0) await page.setCookie(...cookies);
     }
 
+    // Use www.amazon.in — mobile UA+viewport triggers mobile-optimised rendering
+    // without changing to m.amazon.in (which has a different HTML structure)
+    const targetUrl = url.replace(/^https?:\/\/(www\.)?amazon\.in/, "https://www.amazon.in");
     await page.goto(targetUrl, { waitUntil: "networkidle2", timeout: 40000 });
     await new Promise((r) => setTimeout(r, 4000));
 
@@ -87,9 +87,11 @@ export async function scrapeProduct(url: string, cookieString?: string): Promise
       const image =
         (document.querySelector("#landingImage") as HTMLImageElement)?.src ||
         (document.querySelector("#imgBlkFront") as HTMLImageElement)?.src ||
-        (document.querySelector(".a-dynamic-image") as HTMLImageElement)?.src ||
+        (document.querySelector("#ebooksImgBlkFront") as HTMLImageElement)?.src ||
         (document.querySelector("img[data-a-dynamic-image]") as HTMLImageElement)?.src ||
+        (document.querySelector(".a-dynamic-image") as HTMLImageElement)?.src ||
         (document.querySelector("#main-image") as HTMLImageElement)?.src ||
+        (document.querySelector("#imageBlock img") as HTMLImageElement)?.src ||
         "";
 
       const sections: string[] = [];
