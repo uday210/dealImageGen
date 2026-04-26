@@ -98,6 +98,7 @@ function detailedTemplate(p: ProductData): string {
       : original > current ? [{ label: "Deal Discount", amount: `-₹${(original - current).toLocaleString("en-IN")}` }] : [];
 
   const hasEmi = !!(p.emiAmount && p.emiMonths);
+  const emiOptions = p.emiOptions && p.emiOptions.length > 0 ? p.emiOptions : (hasEmi ? [{ amount: p.emiAmount, months: p.emiMonths }] : []);
   const h = hasEmi ? 560 : 500;
 
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
@@ -136,9 +137,10 @@ function detailedTemplate(p: ProductData): string {
   .sv{font-size:11.5px;color:#374151;font-weight:600;}
   .amz-row{display:flex;justify-content:flex-end;margin-top:auto;}
   .amz{background:#ff9900;color:#111;font-weight:800;font-size:12px;padding:5px 13px;border-radius:6px;}
-  .emi-banner{background:#1a3a6b;color:white;padding:11px 22px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
-  .emi-lbl{font-size:13px;font-weight:600;}
-  .emi-val{font-size:17px;font-weight:900;}
+  .emi-banner{background:#1a3a6b;color:white;padding:10px 22px;display:flex;align-items:center;gap:12px;flex-shrink:0;flex-wrap:wrap;}
+  .emi-lbl{font-size:13px;font-weight:600;white-space:nowrap;}
+  .emi-chips{display:flex;gap:6px;flex-wrap:wrap;}
+  .emi-chip{background:rgba(255,255,255,0.18);color:white;padding:4px 10px;border-radius:5px;font-size:12px;font-weight:700;white-space:nowrap;}
 </style></head><body><div class="card">
   <div class="left">
     ${discountBadge(p.discount, "circle")}
@@ -169,7 +171,7 @@ function detailedTemplate(p: ProductData): string {
       ${p.totalCostToLender ? `<div class="sub-row"><span class="sl">Total Cost (payable to lender):</span><span class="sv">${p.totalCostToLender}</span></div>` : ""}
       ${!hasEmi ? `<div class="amz-row"><div class="amz">amazon.in</div></div>` : ""}
     </div>
-    ${hasEmi ? `<div class="emi-banner"><div style="display:flex;align-items:center;gap:8px"><span style="font-size:18px">💳</span><span class="emi-lbl">No Cost EMI:</span></div><span class="emi-val">${p.emiAmount} × ${p.emiMonths} months</span></div>` : ""}
+    ${emiOptions.length > 0 ? `<div class="emi-banner"><span style="font-size:18px">💳</span><span class="emi-lbl">No Cost EMI:</span><div class="emi-chips">${emiOptions.map(o => `<span class="emi-chip">${o.amount} × ${o.months}m</span>`).join("")}</div></div>` : ""}
   </div>
 </div></body></html>`;
 }
@@ -531,7 +533,8 @@ export async function generateImage(
   try {
     const page = await browser.newPage();
     const isDetailed = style === "detailed";
-    const height = isDetailed && product.emiAmount ? 560 : isDetailed ? 500 : 500;
+    const emiOptCount = product.emiOptions?.length || (product.emiAmount ? 1 : 0);
+    const height = isDetailed && emiOptCount > 4 ? 600 : isDetailed && emiOptCount > 0 ? 560 : isDetailed ? 500 : 500;
     const width = isDetailed ? 1000 : 900;
     await page.setViewport({ width, height, deviceScaleFactor: 2 });
     const html = TEMPLATES[style](product);

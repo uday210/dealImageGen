@@ -16,6 +16,7 @@ interface ProductData {
   bankDiscount?: string;
   emiAmount?: string;
   emiMonths?: string;
+  emiOptions?: { amount: string; months: string }[];
   orderTotal?: string;
   totalSavings?: string;
 }
@@ -353,7 +354,10 @@ export default function Home() {
                   {product.originalPrice && <span className="text-sm text-gray-400 line-through">{product.originalPrice}</span>}
                   {product.discount && <span className="text-xs font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-full">{product.discount.replace("-","")} OFF</span>}
                   {(product as any).couponDiscount && <span className="text-xs font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full">Coupon {(product as any).couponDiscount.replace("-","")}</span>}
-                  {(product as any).emiAmount && <span className="text-xs font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full">EMI {(product as any).emiAmount}/mo</span>}
+                  {product.emiOptions && product.emiOptions.length > 0
+                    ? <span className="text-xs font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full">No Cost EMI · {product.emiOptions.length} option{product.emiOptions.length > 1 ? "s" : ""}</span>
+                    : product.emiAmount && <span className="text-xs font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full">EMI {product.emiAmount}/mo</span>
+                  }
                 </div>
               </div>
               <span className="text-green-500 text-xl flex-shrink-0">✓</span>

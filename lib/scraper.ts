@@ -24,6 +24,7 @@ export interface ProductData {
   orderTotal: string;
   emiAmount: string;
   emiMonths: string;
+  emiOptions: { amount: string; months: string }[];
   interestCharged: string;
   totalCostToLender: string;
   couponDiscount: string;
@@ -126,12 +127,11 @@ export async function scrapeProduct(url: string): Promise<ProductData> {
         if (t) emiTexts.push(t);
       });
 
-      // Find the best No Cost EMI: lowest monthly instalment with NoCost marker
+      // Collect ALL No Cost EMI options, deduplicated by tenure
       // Pattern in emiTexts: ["₹5,250", "x 3m", "NoCost", "₹15,749", "₹2,625", "x 6m", "NoCost", "₹15,749"]
-      let bestEmiAmount = "";
-      let bestEmiMonths = "";
+      interface EmiOpt { amount: string; months: string; instalment: number; }
+      const emiMap = new Map<string, EmiOpt>(); // keyed by months to dedupe
       let noCostEmiDiscount = "";
-      let lowestInstalment = Infinity;
 
       for (let i = 0; i < emiTexts.length - 2; i++) {
         const amtText = emiTexts[i];
@@ -143,20 +143,30 @@ export async function scrapeProduct(url: string): Promise<ProductData> {
 
         if (amtMatch && mthMatch) {
           const instalment = parseInt(amtMatch[1].replace(/,/g, ""));
-          const months = parseInt(mthMatch[1]);
+          const months = mthMatch[1];
           const isNoCost = marker === "NoCost" || marker === "No Cost";
 
-          if (isNoCost && instalment < lowestInstalment) {
-            lowestInstalment = instalment;
-            bestEmiAmount = `₹${instalment.toLocaleString("en-IN")}`;
-            bestEmiMonths = String(months);
+          if (isNoCost && !emiMap.has(months)) {
+            emiMap.set(months, {
+              amount: `₹${instalment.toLocaleString("en-IN")}`,
+              months,
+              instalment,
+            });
           }
-
-          // Capture the interest amount for No Cost EMI (next text after total price when NoCost)
-          // Pattern: amount, xNm, NoCost, total_price — the interest is what bank absorbs
-          // Try to find it from a standard plan at same tenure for comparison
         }
       }
+
+      // Sort by months ascending (3m, 6m, 9m, 12m...)
+      const emiOptions: EmiOpt[] = Array.from(emiMap.values()).sort(
+        (a, b) => parseInt(a.months) - parseInt(b.months)
+      );
+
+      // bestEmi = longest tenure = lowest monthly instalment
+      const bestEmiOpt = emiOptions.length
+        ? emiOptions.reduce((a, b) => (parseInt(a.months) > parseInt(b.months) ? a : b))
+        : null;
+      const bestEmiAmount = bestEmiOpt?.amount || "";
+      const bestEmiMonths = bestEmiOpt?.months || "";
 
       // No Cost EMI discount = interest the bank absorbs (search for first non-zero interest on same tenure)
       if (bestEmiMonths) {
@@ -221,6 +231,7 @@ export async function scrapeProduct(url: string): Promise<ProductData> {
         title, image, currentPrice, originalPrice, discount, rating, offers,
         deliveryCharge, savingsItems, totalSavings, orderTotal,
         emiAmount: bestEmiAmount, emiMonths: bestEmiMonths,
+        emiOptions: emiOptions.map(({ amount, months }) => ({ amount, months })),
         interestCharged, totalCostToLender,
         couponDiscount, bankDiscount, noCostEmiDiscount,
       };
