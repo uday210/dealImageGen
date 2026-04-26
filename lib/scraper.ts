@@ -62,9 +62,16 @@ export async function scrapeProduct(url: string, cookieString?: string): Promise
 
   try {
     const page = await browser.newPage();
+
+    // Mobile user agent + viewport — Amazon mobile renders cleaner flat HTML
+    // with offers, coupons, and EMI as visible text rather than JS-rendered accordions
     await page.setUserAgent(
-      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+      "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.6099.230 Mobile Safari/537.36"
     );
+    await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+
+    // Rewrite to mobile subdomain for cleaner page structure
+    const targetUrl = url.replace(/^https?:\/\/(www\.)?amazon\.in/, "https://m.amazon.in");
 
     // Inject Amazon login cookies if provided — enables coupon/personalised offer scraping
     if (cookieString?.trim()) {
@@ -72,55 +79,59 @@ export async function scrapeProduct(url: string, cookieString?: string): Promise
       if (cookies.length > 0) await page.setCookie(...cookies);
     }
 
-    await page.goto(url, { waitUntil: "networkidle2", timeout: 40000 });
-    await new Promise((r) => setTimeout(r, 5000));
+    await page.goto(targetUrl, { waitUntil: "networkidle2", timeout: 40000 });
+    await new Promise((r) => setTimeout(r, 4000));
 
-    // Extract image via DOM (reliable across all layouts) + raw text for AI
+    // Extract image via DOM + raw text for AI
     const { image, pageText } = await page.evaluate(() => {
       const image =
         (document.querySelector("#landingImage") as HTMLImageElement)?.src ||
         (document.querySelector("#imgBlkFront") as HTMLImageElement)?.src ||
         (document.querySelector(".a-dynamic-image") as HTMLImageElement)?.src ||
+        (document.querySelector("img[data-a-dynamic-image]") as HTMLImageElement)?.src ||
+        (document.querySelector("#main-image") as HTMLImageElement)?.src ||
         "";
 
-      // Collect text from the sections that contain deal info
       const sections: string[] = [];
-      const singleSelectors = [
+
+      // Mobile-specific selectors
+      const mobileSelectors = [
+        "#title",
         "#productTitle",
-        "#rightCol",
-        "#desktop_buybox",
-        "#buybox",
-        "#apex_desktop",
+        "#tp_price_block_total_price_ww",
+        "#price_inside_buybox",
         "#corePrice_feature_div",
+        "#buybox",
+        "#mobile-buybox",
+        "#buyBoxAccordion",
         "#couponsInBuybox_feature_div",
+        "#instantBankDiscount_feature_div",
         "#itembox-InstantBankDiscount",
+        "#emiCalculator_feature_div",
+        "#installmentCalculator_feature_div",
         "#averageCustomerReviews",
         "#deliveryMessageMirId",
-        "#ddmDeliveryMessage",
       ];
-      for (const sel of singleSelectors) {
+      for (const sel of mobileSelectors) {
         const el = document.querySelector(sel) as HTMLElement | null;
         if (el) {
           const t = el.innerText?.trim();
           if (t && t.length > 3) sections.push(t);
         }
       }
-      // Collect ALL elements with 'inemi' in ID (EMI sections can be multiple)
-      document.querySelectorAll("[id*='inemi']").forEach((el) => {
-        const t = (el as HTMLElement).innerText?.trim();
-        if (t && t.length > 3) sections.push(t);
-      });
-      // Scan for any element whose text mentions "No Cost EMI" — catch hidden/accordion sections
+
+      // Collect ALL elements with 'emi' in ID or class
       document.querySelectorAll("*").forEach((el) => {
         const id = el.id || "";
-        const cls = el.className || "";
+        const cls = (typeof el.className === "string" ? el.className : "");
         if ((id + cls).toLowerCase().includes("emi")) {
           const t = (el as HTMLElement).innerText?.trim();
           if (t && t.length > 5 && t.length < 2000) sections.push("EMI SECTION:\n" + t);
         }
       });
-      // Body text fallback — catches apex/non-standard price layouts (first 8000 chars)
-      const bodySnippet = document.body.innerText.substring(0, 8000);
+
+      // Full body text — mobile page is shorter so 10000 chars covers most of it
+      const bodySnippet = document.body.innerText.substring(0, 10000);
       sections.push("FULL PAGE TEXT:\n" + bodySnippet);
 
       return { image, pageText: sections.join("\n---\n") };
