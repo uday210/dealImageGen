@@ -35,7 +35,25 @@ export interface ProductData {
   noCostEmiDiscount: string;
 }
 
-export async function scrapeProduct(url: string): Promise<ProductData> {
+function parseCookieString(cookieStr: string): { name: string; value: string; domain: string; path: string }[] {
+  return cookieStr
+    .split(";")
+    .map((c) => c.trim())
+    .filter(Boolean)
+    .map((c) => {
+      const idx = c.indexOf("=");
+      if (idx === -1) return null;
+      return {
+        name: c.slice(0, idx).trim(),
+        value: c.slice(idx + 1).trim(),
+        domain: ".amazon.in",
+        path: "/",
+      };
+    })
+    .filter(Boolean) as { name: string; value: string; domain: string; path: string }[];
+}
+
+export async function scrapeProduct(url: string, cookieString?: string): Promise<ProductData> {
   const browser = await puppeteer.launch({
     executablePath: CHROME_PATH,
     headless: true,
@@ -47,6 +65,13 @@ export async function scrapeProduct(url: string): Promise<ProductData> {
     await page.setUserAgent(
       "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     );
+
+    // Inject Amazon login cookies if provided — enables coupon/personalised offer scraping
+    if (cookieString?.trim()) {
+      const cookies = parseCookieString(cookieString);
+      if (cookies.length > 0) await page.setCookie(...cookies);
+    }
+
     await page.goto(url, { waitUntil: "networkidle2", timeout: 40000 });
     await new Promise((r) => setTimeout(r, 5000));
 

@@ -1,5 +1,5 @@
 "use client";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 
 type TemplateStyle = "simple" | "detailed" | "minimal" | "bold" | "gradient" | "vibrant" | "premium" | "news";
 
@@ -51,6 +51,27 @@ export default function Home() {
   const [testLoading, setTestLoading] = useState(false);
   const [testResult, setTestResult] = useState<{diagnosis: string; tips?: string[]; chatInfo?: {type:string;title:string;id:number}; botInfo?: {username:string}} | null>(null);
 
+  // Amazon cookie state
+  const [amazonCookies, setAmazonCookies] = useState("");
+  const [showCookiePanel, setShowCookiePanel] = useState(false);
+  const [cookieSaved, setCookieSaved] = useState(false);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("amazon_cookies");
+    if (saved) setAmazonCookies(saved);
+  }, []);
+
+  function saveCookies() {
+    localStorage.setItem("amazon_cookies", amazonCookies.trim());
+    setCookieSaved(true);
+    setTimeout(() => setCookieSaved(false), 2000);
+  }
+
+  function clearCookies() {
+    localStorage.removeItem("amazon_cookies");
+    setAmazonCookies("");
+  }
+
   // Save to history state
   const [savedPostIds, setSavedPostIds] = useState<Partial<Record<TemplateStyle, string>>>({});
   const [savingStyles, setSavingStyles] = useState<Set<TemplateStyle>>(new Set());
@@ -70,7 +91,7 @@ export default function Home() {
       const res = await fetch("/api/scrape", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: url.trim() }),
+        body: JSON.stringify({ url: url.trim(), cookies: amazonCookies.trim() || undefined }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
@@ -336,6 +357,67 @@ export default function Home() {
                 <span className="flex items-center gap-2"><span className="animate-spin">⏳</span> Scraping...</span>
               ) : "Fetch Product"}
             </button>
+          </div>
+
+          {/* Amazon Cookie Config */}
+          <div className="mt-3">
+            <button
+              onClick={() => setShowCookiePanel(!showCookiePanel)}
+              className="flex items-center gap-2 text-xs text-gray-500 hover:text-gray-700 transition-colors"
+            >
+              <span>{showCookiePanel ? "▾" : "▸"}</span>
+              <span>Amazon Login Cookies</span>
+              {amazonCookies
+                ? <span className="bg-green-100 text-green-700 font-semibold px-2 py-0.5 rounded-full">✓ Saved — coupons enabled</span>
+                : <span className="bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">Not set — coupons may be hidden</span>
+              }
+            </button>
+
+            {showCookiePanel && (
+              <div className="mt-3 bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3">
+                <div>
+                  <p className="text-sm font-semibold text-amber-800 mb-1">Paste your Amazon.in cookies</p>
+                  <p className="text-xs text-amber-700">
+                    Amazon hides coupons from logged-out visitors. Paste your session cookies so the scraper visits as you.
+                  </p>
+                </div>
+
+                <div className="bg-white border border-amber-200 rounded-lg p-3 text-xs text-gray-600 space-y-1">
+                  <p className="font-semibold text-gray-700">How to get your cookies:</p>
+                  <p>1. Open <b>amazon.in</b> and make sure you're logged in</p>
+                  <p>2. Press <b>F12</b> → Network tab → reload the page</p>
+                  <p>3. Click any request to <b>amazon.in</b> → Request Headers</p>
+                  <p>4. Find <b>cookie:</b> — select all the text after it and copy</p>
+                  <p>5. Paste below and click Save</p>
+                </div>
+
+                <textarea
+                  value={amazonCookies}
+                  onChange={(e) => setAmazonCookies(e.target.value)}
+                  rows={3}
+                  placeholder="session-id=xxx; session-token=xxx; ubid-acbin=xxx; ..."
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"
+                />
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={saveCookies}
+                    className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg text-xs font-semibold transition-colors"
+                  >
+                    {cookieSaved ? "✓ Saved!" : "💾 Save Cookies"}
+                  </button>
+                  {amazonCookies && (
+                    <button
+                      onClick={clearCookies}
+                      className="text-xs text-red-500 hover:text-red-700 transition-colors"
+                    >
+                      Clear
+                    </button>
+                  )}
+                  <span className="text-xs text-amber-600">Stored in your browser only — never sent to any server except your own scraper</span>
+                </div>
+              </div>
+            )}
           </div>
 
           {error && (
