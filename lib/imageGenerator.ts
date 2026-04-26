@@ -155,14 +155,15 @@ function detailedTemplate(p: ProductData): string {
         <div class="row"><span class="rl">Delivery</span><span class="rv free">${p.deliveryCharge || "FREE"}</span></div>
         ${original ? `<div class="row"><span class="rl" style="font-weight:700;color:#0f172a">Total</span><span class="rv">₹${original.toLocaleString("en-IN")}.00</span></div>` : ""}
       </div>
-      ${savingsItems.length > 0 ? `
+      ${(savingsItems.length > 0 || p.youSave) ? `
       <div class="sav-box">
         <div class="sav-hdr">
-          <div class="sav-badge">🏷️ SAVINGS <span class="sav-count">${savingsItems.length}</span></div>
-          ${p.totalSavings ? `<span class="sav-total">${p.totalSavings}</span>` : ""}
+          <div class="sav-badge">🏷️ SAVINGS</div>
+          ${p.youSave ? `<span class="sav-total">${p.youSave} off MRP</span>` : p.totalSavings ? `<span class="sav-total">${p.totalSavings}</span>` : ""}
         </div>
-        <div class="sav-items">${savingsItems.map(s=>`
-          <div class="sav-item"><span class="sav-item-l">${s.label}</span><span class="sav-item-a">${s.amount}</span></div>`).join("")}
+        <div class="sav-items">
+          ${p.youSave ? `<div class="sav-item"><span class="sav-item-l">Deal Discount</span><span class="sav-item-a">${p.youSave}</span></div>` : ""}
+          ${savingsItems.map(s=>`<div class="sav-item"><span class="sav-item-l">${s.label}</span><span class="sav-item-a">${s.amount}</span></div>`).join("")}
         </div>
       </div>` : ""}
       <div class="divider"></div>

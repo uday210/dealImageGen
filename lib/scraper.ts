@@ -22,6 +22,7 @@ export interface ProductData {
   savingsItems: SavingsItem[];
   totalSavings: string;
   orderTotal: string;
+  youSave: string;
   emiAmount: string;
   emiMonths: string;
   emiOptions: { amount: string; months: string }[];
@@ -45,7 +46,7 @@ export async function scrapeProduct(url: string): Promise<ProductData> {
       "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     );
     await page.goto(url, { waitUntil: "networkidle2", timeout: 40000 });
-    await new Promise((r) => setTimeout(r, 3000));
+    await new Promise((r) => setTimeout(r, 5000));
 
     const data = await page.evaluate(() => {
       const text = (sel: string) =>
@@ -65,28 +66,83 @@ export async function scrapeProduct(url: string): Promise<ProductData> {
         "";
 
       // ── Current price ───────────────────────────────────────────────
-      const priceWhole =
-        document.querySelector(".priceToPay .a-price-whole")?.textContent?.replace(/[,\.]/g, "").trim() || "";
-      const priceFraction =
-        document.querySelector(".priceToPay .a-price-fraction")?.textContent?.trim() || "";
-      const currentPrice = priceWhole
-        ? `₹${parseInt(priceWhole).toLocaleString("en-IN")}${priceFraction ? "." + priceFraction : ""}`
-        : document.querySelector("#priceblock_ourprice, #priceblock_dealprice, .a-price .a-offscreen")
-            ?.textContent?.trim() || "";
+      // Try standard layout first, then apex/corePrice layout
+      const priceWhole = (
+        document.querySelector(".priceToPay .a-price-whole") ||
+        document.querySelector("#apex_desktop .priceToPay .a-price-whole") ||
+        document.querySelector("#corePrice_feature_div .priceToPay .a-price-whole") ||
+        document.querySelector("#newBuyBoxPrice .a-price-whole") ||
+        document.querySelector("#price_inside_buybox")
+      )?.textContent?.replace(/[,\.]/g, "").trim() || "";
+
+      const priceFraction = (
+        document.querySelector(".priceToPay .a-price-fraction") ||
+        document.querySelector("#apex_desktop .priceToPay .a-price-fraction") ||
+        document.querySelector("#corePrice_feature_div .priceToPay .a-price-fraction")
+      )?.textContent?.trim() || "";
+
+      let currentPrice = "";
+      if (priceWhole) {
+        currentPrice = `₹${parseInt(priceWhole).toLocaleString("en-IN")}${priceFraction ? "." + priceFraction : ""}`;
+      } else {
+        // Old layout fallback
+        currentPrice = document.querySelector("#priceblock_ourprice, #priceblock_dealprice")?.textContent?.trim() || "";
+      }
+      // Last resort: first non-strikethrough .a-price inside the buybox
+      if (!currentPrice) {
+        const buybox = document.querySelector("#buybox, #desktop_buybox, #rightCol");
+        if (buybox) {
+          const offscreen = buybox.querySelector(".a-price:not(.a-text-price) .a-offscreen");
+          if (offscreen) currentPrice = offscreen.textContent?.trim() || "";
+        }
+      }
+      // Text fallback: Amazon apex pages render "₹48,490.00 with 39 percent savings"
+      if (!currentPrice) {
+        const bodyText = document.body.innerText;
+        const m = bodyText.match(/(₹[\d,]+(?:\.\d{2})?)\s+with\s+(\d+)\s+percent\s+savings/);
+        if (m) currentPrice = m[1].replace(/\.00$/, "");
+      }
 
       // ── Original / MRP ─────────────────────────────────────────────
-      const originalPrice =
-        document.querySelector(".basisPrice .a-offscreen")?.textContent?.trim() ||
-        document.querySelector(".a-text-price .a-offscreen")?.textContent?.trim() ||
-        document.querySelector(".a-price.a-text-price .a-offscreen")?.textContent?.trim() ||
-        "";
+      const originalPrice = (
+        document.querySelector(".basisPrice .a-offscreen") ||
+        document.querySelector("#apex_desktop .basisPrice .a-offscreen") ||
+        document.querySelector("#corePrice_feature_div .basisPrice .a-offscreen") ||
+        document.querySelector("#corePriceDisplay .basisPrice .a-offscreen") ||
+        document.querySelector(".a-text-price .a-offscreen") ||
+        document.querySelector(".a-price.a-text-price .a-offscreen")
+      )?.textContent?.trim() || "";
+
+      // Text fallback for MRP — apex pages render "₹48,490.00 with 39 percent savings₹48,490.00₹78,990.00"
+      let originalPriceFinal = originalPrice;
+      if (!originalPriceFinal) {
+        const bodyText = document.body.innerText;
+        // After "with N percent savings", pattern is: ₹current₹MRP₹MRP
+        const m = bodyText.match(/with\s+\d+\s+percent\s+savings\s*(₹[\d,]+(?:\.\d{2})?)\s*(₹[\d,]+(?:\.\d{2})?)/);
+        if (m && m[2] && m[2] !== m[1]) {
+          originalPriceFinal = m[2].replace(/\.00$/, "");
+        }
+      }
 
       // ── Discount % ─────────────────────────────────────────────────
-      const discount = text(".savingsPercentage") || text("#dealsAccordionRow .a-color-price");
+      let discount =
+        text(".savingsPercentage") ||
+        text("#apex_desktop .savingsPercentage") ||
+        text("#corePrice_feature_div .savingsPercentage") ||
+        text(".reinventPriceSavingsPercentageMargin") ||
+        text("#dealsAccordionRow .a-color-price");
+      // Text fallback: "₹X with 39 percent savings"
+      if (!discount) {
+        const m = document.body.innerText.match(/with\s+(\d+)\s+percent\s+savings/);
+        if (m) discount = `-${m[1]}%`;
+      }
 
       // ── Rating ─────────────────────────────────────────────────────
-      const rating =
-        document.querySelector("#acrPopover .a-size-base.a-color-base")?.textContent?.trim() || "";
+      const rating = (
+        document.querySelector("#acrPopover .a-size-base.a-color-base") ||
+        document.querySelector("#averageCustomerReviews .a-size-base") ||
+        document.querySelector("[data-hook='average-star-rating'] .a-size-base")
+      )?.textContent?.trim() || "";
 
       // ── Delivery ───────────────────────────────────────────────────
       const deliveryText =
@@ -197,8 +253,14 @@ export async function scrapeProduct(url: string): Promise<ProductData> {
       if (bankDiscount) savingsItems.push({ label: "Instant Bank Discount", amount: bankDiscount });
       if (noCostEmiDiscount) savingsItems.push({ label: "No Cost EMI Discount", amount: noCostEmiDiscount });
 
-      // ── Total savings & order total ────────────────────────────────
+      // ── You Save (off MRP) ─────────────────────────────────────────
       const currentNum = parseInt(currentPrice.replace(/[^\d]/g, "")) || 0;
+      const origNum = parseInt(originalPriceFinal.replace(/[^\d]/g, "")) || 0;
+      const youSave = origNum > 0 && currentNum > 0 && origNum > currentNum
+        ? `-₹${(origNum - currentNum).toLocaleString("en-IN")}`
+        : "";
+
+      // ── Total savings & order total ────────────────────────────────
       const couponNum = couponDiscount ? parseInt(couponDiscount.replace(/[^\d]/g, "")) : 0;
       const noCostEmiNum = noCostEmiDiscount ? parseInt(noCostEmiDiscount.replace(/[^\d]/g, "")) : 0;
       const totalSavingsNum = couponNum + noCostEmiNum;
@@ -225,11 +287,15 @@ export async function scrapeProduct(url: string): Promise<ProductData> {
         const t = el.textContent?.trim();
         if (t && t.length > 5 && t.length < 200) offers.push(t);
       });
-      if (bankRawText) offers.unshift(bankRawText.substring(0, 120));
+      // Clean and prepend bank offer — deduplicate repeated sentence halves
+      if (bankRawText) {
+        const cleaned = bankRawText.replace(/(.{20,}?)\1+/g, "$1").replace(/\s{2,}/g, " ").trim().substring(0, 80);
+        offers.unshift(cleaned);
+      }
 
       return {
-        title, image, currentPrice, originalPrice, discount, rating, offers,
-        deliveryCharge, savingsItems, totalSavings, orderTotal,
+        title, image, currentPrice, originalPrice: originalPriceFinal, discount, rating, offers,
+        deliveryCharge, savingsItems, totalSavings, orderTotal, youSave,
         emiAmount: bestEmiAmount, emiMonths: bestEmiMonths,
         emiOptions: emiOptions.map(({ amount, months }) => ({ amount, months })),
         interestCharged, totalCostToLender,

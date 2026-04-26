@@ -12,6 +12,7 @@ interface ProductData {
   rating: string;
   offers: string[];
   url: string;
+  youSave?: string;
   couponDiscount?: string;
   bankDiscount?: string;
   emiAmount?: string;
