@@ -99,7 +99,11 @@ function detailedTemplate(p: ProductData): string {
 
   const hasEmi = !!(p.emiAmount && p.emiMonths);
   const emiOptions = p.emiOptions && p.emiOptions.length > 0 ? p.emiOptions : (hasEmi ? [{ amount: p.emiAmount, months: p.emiMonths }] : []);
-  const h = hasEmi ? 560 : 500;
+  const savingsCount = savingsItems.length + (p.youSave ? 1 : 0);
+  const h = 500
+    + (savingsCount > 2 ? (savingsCount - 2) * 22 : 0)
+    + (emiOptions.length > 0 ? 55 : 0)
+    + ((p.bankEmiOffers?.length || 0) > 0 ? 85 : 0);
 
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
   *{margin:0;padding:0;box-sizing:border-box;}
@@ -555,7 +559,13 @@ export async function generateImage(
     const isDetailed = style === "detailed";
     const emiOptCount = product.emiOptions?.length || (product.emiAmount ? 1 : 0);
     const hasBankOffers = (product.bankEmiOffers?.length || 0) > 0;
-    const height = isDetailed && hasBankOffers ? 640 : isDetailed && emiOptCount > 4 ? 600 : isDetailed && emiOptCount > 0 ? 560 : isDetailed ? 500 : 500;
+    const savingsCount = (product.savingsItems?.length || 0) + (product.youSave ? 1 : 0);
+    const height = isDetailed
+      ? 500
+        + (savingsCount > 2 ? (savingsCount - 2) * 22 : 0)
+        + (emiOptCount > 0 ? 55 : 0)
+        + (hasBankOffers ? 85 : 0)
+      : 500;
     const width = isDetailed ? 1000 : 900;
     await page.setViewport({ width, height, deviceScaleFactor: 2 });
     const html = TEMPLATES[style](product);

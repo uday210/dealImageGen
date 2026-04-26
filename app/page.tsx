@@ -51,6 +51,9 @@ export default function Home() {
   const [testLoading, setTestLoading] = useState(false);
   const [testResult, setTestResult] = useState<{diagnosis: string; tips?: string[]; chatInfo?: {type:string;title:string;id:number}; botInfo?: {username:string}} | null>(null);
 
+  // Edit panel state
+  const [showEditPanel, setShowEditPanel] = useState(false);
+
   // Amazon cookie state
   const [amazonCookies, setAmazonCookies] = useState("");
   const [showCookiePanel, setShowCookiePanel] = useState(false);
@@ -87,6 +90,7 @@ export default function Home() {
     setGeneratedImages({});
     setCaption("");
     setSavedPostIds({});
+    setShowEditPanel(false);
     try {
       const res = await fetch("/api/scrape", {
         method: "POST",
@@ -427,25 +431,130 @@ export default function Home() {
           )}
 
           {product && (
-            <div className="mt-4 bg-gray-50 rounded-xl p-4 flex gap-4 items-start">
-              {product.image && (
-                <img src={product.image} alt="" className="w-20 h-20 object-contain rounded-lg bg-white border border-gray-200 p-1 flex-shrink-0" />
-              )}
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-gray-800 line-clamp-2">{product.title}</p>
-                <div className="flex gap-2 mt-2 flex-wrap">
-                  {product.currentPrice && <span className="text-base font-bold text-red-600">{product.currentPrice}</span>}
-                  {product.originalPrice && <span className="text-sm text-gray-400 line-through">{product.originalPrice}</span>}
-                  {product.discount && <span className="text-xs font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-full">{product.discount.replace("-","")} OFF</span>}
-                  {(product as any).couponDiscount && <span className="text-xs font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full">Coupon {(product as any).couponDiscount.replace("-","")}</span>}
-                  {product.emiOptions && product.emiOptions.length > 0
-                    ? <span className="text-xs font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full">No Cost EMI · {product.emiOptions.length} option{product.emiOptions.length > 1 ? "s" : ""}</span>
-                    : product.emiAmount && <span className="text-xs font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full">EMI {product.emiAmount}/mo</span>
-                  }
+            <>
+              {/* Product summary */}
+              <div className="mt-4 bg-gray-50 rounded-xl p-4 flex gap-4 items-start">
+                {product.image && (
+                  <img src={product.image} alt="" className="w-20 h-20 object-contain rounded-lg bg-white border border-gray-200 p-1 flex-shrink-0" />
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-800 line-clamp-2">{product.title}</p>
+                  <div className="flex gap-2 mt-2 flex-wrap">
+                    {product.currentPrice && <span className="text-base font-bold text-red-600">{product.currentPrice}</span>}
+                    {product.originalPrice && <span className="text-sm text-gray-400 line-through">{product.originalPrice}</span>}
+                    {product.discount && <span className="text-xs font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-full">{product.discount.replace("-","")} OFF</span>}
+                    {product.couponDiscount && <span className="text-xs font-bold text-orange-700 bg-orange-100 px-2 py-0.5 rounded-full">🎟️ Coupon {product.couponDiscount.replace("-","")}</span>}
+                    {product.emiOptions && product.emiOptions.length > 0
+                      ? <span className="text-xs font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full">No Cost EMI · {product.emiOptions.length} option{product.emiOptions.length > 1 ? "s" : ""}</span>
+                      : product.emiAmount && <span className="text-xs font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full">EMI {product.emiAmount}/mo</span>
+                    }
+                  </div>
                 </div>
+                <button
+                  onClick={() => setShowEditPanel(!showEditPanel)}
+                  className="text-xs font-semibold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors flex-shrink-0"
+                >
+                  {showEditPanel ? "✕ Close" : "✏️ Edit"}
+                </button>
               </div>
-              <span className="text-green-500 text-xl flex-shrink-0">✓</span>
-            </div>
+
+              {/* Edit panel */}
+              {showEditPanel && (
+                <div className="mt-2 bg-white border border-blue-200 rounded-xl p-4 space-y-3">
+                  <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Edit Deal Details</p>
+                  {/* Title */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Product Title</label>
+                    <input
+                      type="text"
+                      value={product.title}
+                      onChange={(e) => setProduct({ ...product, title: e.target.value })}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                    />
+                  </div>
+                  {/* Price row */}
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Deal Price</label>
+                      <input
+                        type="text"
+                        value={product.currentPrice}
+                        onChange={(e) => setProduct({ ...product, currentPrice: e.target.value })}
+                        placeholder="₹35,990"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">MRP</label>
+                      <input
+                        type="text"
+                        value={product.originalPrice}
+                        onChange={(e) => setProduct({ ...product, originalPrice: e.target.value })}
+                        placeholder="₹54,000"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Discount %</label>
+                      <input
+                        type="text"
+                        value={product.discount}
+                        onChange={(e) => setProduct({ ...product, discount: e.target.value })}
+                        placeholder="-33%"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                      />
+                    </div>
+                  </div>
+                  {/* Offers row */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">🎟️ Coupon Discount</label>
+                      <input
+                        type="text"
+                        value={product.couponDiscount || ""}
+                        onChange={(e) => setProduct({ ...product, couponDiscount: e.target.value })}
+                        placeholder="-₹500"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">🏦 Bank Offer</label>
+                      <input
+                        type="text"
+                        value={product.bankDiscount || ""}
+                        onChange={(e) => setProduct({ ...product, bankDiscount: e.target.value })}
+                        placeholder="Upto ₹2,500"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                      />
+                    </div>
+                  </div>
+                  {/* EMI row */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">💳 No Cost EMI Amount</label>
+                      <input
+                        type="text"
+                        value={product.emiAmount || ""}
+                        onChange={(e) => setProduct({ ...product, emiAmount: e.target.value })}
+                        placeholder="₹3,999"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">EMI Months</label>
+                      <input
+                        type="text"
+                        value={product.emiMonths || ""}
+                        onChange={(e) => setProduct({ ...product, emiMonths: e.target.value })}
+                        placeholder="9"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-400">Changes apply immediately — click Generate to see the updated image</p>
+                </div>
+              )}
+            </>
           )}
         </div>
 
