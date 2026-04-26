@@ -9,7 +9,7 @@ const nextConfig: NextConfig = {
     ],
   },
   // Puppeteer uses Node APIs not available in Edge runtime
-  serverExternalPackages: ["puppeteer-core"],
+  serverExternalPackages: ["puppeteer-core", "@anthropic-ai/sdk"],
 };
 
 export default nextConfig;
