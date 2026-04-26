@@ -141,6 +141,13 @@ function detailedTemplate(p: ProductData): string {
   .emi-lbl{font-size:13px;font-weight:600;white-space:nowrap;}
   .emi-chips{display:flex;gap:6px;flex-wrap:wrap;}
   .emi-chip{background:rgba(255,255,255,0.18);color:white;padding:4px 10px;border-radius:5px;font-size:12px;font-weight:700;white-space:nowrap;}
+  .bank-section{padding:8px 22px;background:#f0f9ff;border-top:1px solid #bae6fd;flex-shrink:0;}
+  .bank-section-lbl{font-size:10px;font-weight:800;color:#0369a1;letter-spacing:1px;text-transform:uppercase;margin-bottom:5px;}
+  .bank-cards{display:flex;gap:6px;flex-wrap:wrap;}
+  .bank-card{background:white;border:1.5px solid #e0f2fe;border-radius:7px;padding:5px 10px;display:flex;flex-direction:column;gap:1px;}
+  .bank-name{font-size:9.5px;color:#64748b;font-weight:600;white-space:nowrap;}
+  .bank-price{font-size:13px;font-weight:900;color:#0f172a;}
+  .bank-save{font-size:9px;font-weight:700;color:#16a34a;}
 </style></head><body><div class="card">
   <div class="left">
     ${discountBadge(p.discount, "circle")}
@@ -173,6 +180,18 @@ function detailedTemplate(p: ProductData): string {
       ${!hasEmi ? `<div class="amz-row"><div class="amz">amazon.in</div></div>` : ""}
     </div>
     ${emiOptions.length > 0 ? `<div class="emi-banner"><span style="font-size:18px">💳</span><span class="emi-lbl">No Cost EMI:</span><div class="emi-chips">${emiOptions.map(o => `<span class="emi-chip">${o.amount} × ${o.months}m</span>`).join("")}</div></div>` : ""}
+    ${p.bankEmiOffers && p.bankEmiOffers.length > 0 ? `
+    <div class="bank-section">
+      <div class="bank-section-lbl">💳 Best Bank Offers</div>
+      <div class="bank-cards">
+        ${p.bankEmiOffers.slice(0, 4).map(b => `
+        <div class="bank-card">
+          <span class="bank-name">${b.bank}</span>
+          <span class="bank-price">${b.effectivePrice}</span>
+          <span class="bank-save">Save ₹${b.saving.replace(/[₹,]/g, "")}</span>
+        </div>`).join("")}
+      </div>
+    </div>` : ""}
   </div>
 </div></body></html>`;
 }
@@ -535,7 +554,8 @@ export async function generateImage(
     const page = await browser.newPage();
     const isDetailed = style === "detailed";
     const emiOptCount = product.emiOptions?.length || (product.emiAmount ? 1 : 0);
-    const height = isDetailed && emiOptCount > 4 ? 600 : isDetailed && emiOptCount > 0 ? 560 : isDetailed ? 500 : 500;
+    const hasBankOffers = (product.bankEmiOffers?.length || 0) > 0;
+    const height = isDetailed && hasBankOffers ? 640 : isDetailed && emiOptCount > 4 ? 600 : isDetailed && emiOptCount > 0 ? 560 : isDetailed ? 500 : 500;
     const width = isDetailed ? 1000 : 900;
     await page.setViewport({ width, height, deviceScaleFactor: 2 });
     const html = TEMPLATES[style](product);

@@ -1,5 +1,5 @@
 import puppeteer from "puppeteer-core";
-import { extractDealData } from "./aiExtractor";
+import { extractDealData, BankEmiOffer } from "./aiExtractor";
 
 const CHROME_PATH =
   process.env.CHROME_PATH ||
@@ -27,6 +27,7 @@ export interface ProductData {
   emiAmount: string;
   emiMonths: string;
   emiOptions: { amount: string; months: string }[];
+  bankEmiOffers: BankEmiOffer[];
   interestCharged: string;
   totalCostToLender: string;
   couponDiscount: string;
@@ -145,6 +146,7 @@ export async function scrapeProduct(url: string): Promise<ProductData> {
       emiAmount: bestEmi?.amount || "",
       emiMonths: bestEmi?.months || "",
       emiOptions,
+      bankEmiOffers: ai.bankEmiOffers || [],
       interestCharged: "",
       totalCostToLender: "",
       couponDiscount: ai.couponDiscount || "",

@@ -18,6 +18,7 @@ interface ProductData {
   emiAmount?: string;
   emiMonths?: string;
   emiOptions?: { amount: string; months: string }[];
+  bankEmiOffers?: { bank: string; effectivePrice: string; saving: string }[];
   orderTotal?: string;
   totalSavings?: string;
 }
