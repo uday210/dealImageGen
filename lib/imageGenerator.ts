@@ -95,7 +95,7 @@ function detailedTemplate(p: ProductData): string {
           ...(p.bankDiscount ? [{ label: "Instant Bank Discount", amount: p.bankDiscount }] : []),
           ...(p.noCostEmiDiscount ? [{ label: "No Cost EMI Discount", amount: p.noCostEmiDiscount }] : []),
         ]
-      : original > current ? [{ label: "Deal Discount", amount: `-₹${(original - current).toLocaleString("en-IN")}` }] : [];
+      : (!p.youSave && original > current) ? [{ label: "Deal Discount", amount: `-₹${(original - current).toLocaleString("en-IN")}` }] : [];
 
   const hasEmi = !!(p.emiAmount && p.emiMonths);
   const emiOptions = p.emiOptions && p.emiOptions.length > 0 ? p.emiOptions : (hasEmi ? [{ amount: p.emiAmount, months: p.emiMonths }] : []);
