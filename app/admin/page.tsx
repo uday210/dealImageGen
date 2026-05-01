@@ -9,6 +9,14 @@ interface Permission {
   post_telegram: boolean;
   amazon_cookie: boolean;
   all_templates: boolean;
+  tpl_simple: boolean;
+  tpl_detailed: boolean;
+  tpl_minimal: boolean;
+  tpl_bold: boolean;
+  tpl_gradient: boolean;
+  tpl_vibrant: boolean;
+  tpl_premium: boolean;
+  tpl_news: boolean;
 }
 
 interface AppUser {
@@ -17,25 +25,53 @@ interface AppUser {
   role: string;
   is_enabled: boolean;
   valid_until: string | null;
+  daily_limit: number | null;
   permissions: Permission;
   created_at: string;
 }
 
-const PERMISSION_LABELS: { key: keyof Permission; label: string; icon: string }[] = [
+const FEATURE_LABELS: { key: keyof Permission; label: string; icon: string }[] = [
   { key: "edit",          label: "Edit Details",    icon: "✏️" },
   { key: "save",          label: "Save Posts",      icon: "💾" },
   { key: "post_telegram", label: "Post Telegram",   icon: "✈️" },
   { key: "amazon_cookie", label: "Cookie Scraping", icon: "🍪" },
-  { key: "all_templates", label: "All Templates",   icon: "🎨" },
 ];
 
-const VALIDITY_OPTIONS = [
-  { label: "1 Day",    days: 1 },
-  { label: "7 Days",   days: 7 },
-  { label: "30 Days",  days: 30 },
-  { label: "90 Days",  days: 90 },
-  { label: "Unlimited",days: 0 },
+const TEMPLATE_LABELS: { key: keyof Permission; label: string; icon: string }[] = [
+  { key: "tpl_simple",   label: "Simple",   icon: "🎯" },
+  { key: "tpl_detailed", label: "Detailed", icon: "📋" },
+  { key: "tpl_minimal",  label: "Minimal",  icon: "🌙" },
+  { key: "tpl_bold",     label: "Bold",     icon: "🔥" },
+  { key: "tpl_gradient", label: "Gradient", icon: "💜" },
+  { key: "tpl_vibrant",  label: "Vibrant",  icon: "🟢" },
+  { key: "tpl_premium",  label: "Premium",  icon: "✨" },
+  { key: "tpl_news",     label: "News",     icon: "📰" },
 ];
+
+const DEFAULT_PERMISSIONS: Permission = {
+  edit: true, save: true, post_telegram: true, amazon_cookie: true, all_templates: true,
+  tpl_simple: true, tpl_detailed: true, tpl_minimal: true, tpl_bold: true,
+  tpl_gradient: true, tpl_vibrant: true, tpl_premium: true, tpl_news: true,
+};
+
+const VALIDITY_OPTIONS = [
+  { label: "1 Day",     days: 1 },
+  { label: "7 Days",    days: 7 },
+  { label: "30 Days",   days: 30 },
+  { label: "90 Days",   days: 90 },
+  { label: "Unlimited", days: 0 },
+];
+
+function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button
+      onClick={() => onChange(!on)}
+      className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${on ? "bg-blue-500" : "bg-gray-300"}`}
+    >
+      <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200 ${on ? "translate-x-4" : "translate-x-0"}`} />
+    </button>
+  );
+}
 
 export default function AdminPage() {
   const [users, setUsers] = useState<AppUser[]>([]);
@@ -44,8 +80,8 @@ export default function AdminPage() {
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState("");
   const [newUser, setNewUser] = useState({
-    email: "", password: "", valid_days: 30,
-    permissions: { edit: true, save: true, post_telegram: true, amazon_cookie: true, all_templates: true },
+    email: "", password: "", valid_days: 30, daily_limit: "",
+    permissions: { ...DEFAULT_PERMISSIONS },
   });
   const router = useRouter();
 
@@ -68,14 +104,16 @@ export default function AdminPage() {
     const res = await fetch("/api/admin/users", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(newUser),
+      body: JSON.stringify({
+        ...newUser,
+        daily_limit: newUser.daily_limit ? parseInt(newUser.daily_limit) : null,
+      }),
     });
     const data = await res.json();
     if (!res.ok) { setCreateError(data.error); setCreating(false); return; }
     setUsers(prev => [data, ...prev]);
     setShowCreate(false);
-    setNewUser({ email: "", password: "", valid_days: 30,
-      permissions: { edit: true, save: true, post_telegram: true, amazon_cookie: true, all_templates: true } });
+    setNewUser({ email: "", password: "", valid_days: 30, daily_limit: "", permissions: { ...DEFAULT_PERMISSIONS } });
     setCreating(false);
   }
 
@@ -123,13 +161,13 @@ export default function AdminPage() {
         </button>
       </div>
 
-      <div className="max-w-6xl mx-auto p-6 space-y-6">
+      <div className="max-w-7xl mx-auto p-6 space-y-6">
         {/* Stats */}
         <div className="grid grid-cols-3 gap-4">
           {[
-            { label: "Total Users", value: regularUsers.length, color: "text-blue-600" },
-            { label: "Active",      value: regularUsers.filter(u => u.is_enabled && (!u.valid_until || new Date(u.valid_until) > new Date())).length, color: "text-green-600" },
-            { label: "Disabled / Expired", value: regularUsers.filter(u => !u.is_enabled || (u.valid_until && new Date(u.valid_until) < new Date())).length, color: "text-red-600" },
+            { label: "Total Users",           value: regularUsers.length, color: "text-blue-600" },
+            { label: "Active",                value: regularUsers.filter(u => u.is_enabled && (!u.valid_until || new Date(u.valid_until) > new Date())).length, color: "text-green-600" },
+            { label: "Disabled / Expired",    value: regularUsers.filter(u => !u.is_enabled || (u.valid_until && new Date(u.valid_until) < new Date())).length, color: "text-red-600" },
           ].map(s => (
             <div key={s.label} className="bg-white rounded-xl border border-gray-200 p-5">
               <p className="text-sm text-gray-500">{s.label}</p>
@@ -151,53 +189,56 @@ export default function AdminPage() {
           {loading ? (
             <div className="py-16 text-center text-gray-400 text-sm">Loading...</div>
           ) : regularUsers.length === 0 ? (
-            <div className="py-16 text-center text-gray-400 text-sm">No users yet. Create one above.</div>
+            <div className="py-16 text-center text-gray-400 text-sm">No users yet.</div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                    <th className="px-6 py-3 text-left">User</th>
-                    <th className="px-6 py-3 text-left">Status</th>
-                    <th className="px-6 py-3 text-left">Validity</th>
-                    <th className="px-6 py-3 text-left">Features</th>
-                    <th className="px-6 py-3 text-left">Actions</th>
+                    <th className="px-5 py-3 text-left">User</th>
+                    <th className="px-5 py-3 text-left">Status</th>
+                    <th className="px-5 py-3 text-left">Validity</th>
+                    <th className="px-5 py-3 text-left">Daily Limit</th>
+                    <th className="px-5 py-3 text-left">Features</th>
+                    <th className="px-5 py-3 text-left">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {regularUsers.map(user => {
                     const v = validityLabel(user.valid_until);
                     return (
-                      <tr key={user.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-6 py-4">
+                      <tr key={user.id} className="hover:bg-gray-50 transition-colors align-top">
+                        {/* User */}
+                        <td className="px-5 py-4">
                           <p className="font-medium text-gray-900">{user.email}</p>
                           <p className="text-xs text-gray-400 mt-0.5">
                             Since {new Date(user.created_at).toLocaleDateString()}
                           </p>
                         </td>
 
-                        <td className="px-6 py-4">
-                          <button
-                            onClick={() => patchUser(user.id, { is_enabled: !user.is_enabled })}
-                            className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
-                              user.is_enabled
-                                ? "bg-green-100 text-green-700 hover:bg-green-200"
-                                : "bg-red-100 text-red-700 hover:bg-red-200"
-                            }`}
-                          >
-                            {user.is_enabled ? "● Active" : "○ Disabled"}
-                          </button>
+                        {/* Status toggle */}
+                        <td className="px-5 py-4">
+                          <div className="flex items-center gap-2">
+                            <Toggle
+                              on={user.is_enabled}
+                              onChange={(v) => patchUser(user.id, { is_enabled: v })}
+                            />
+                            <span className={`text-xs font-medium ${user.is_enabled ? "text-green-600" : "text-red-500"}`}>
+                              {user.is_enabled ? "Active" : "Disabled"}
+                            </span>
+                          </div>
                         </td>
 
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-2">
-                            <span className={`px-2 py-1 rounded-md text-xs font-semibold ${v.color}`}>
+                        {/* Validity */}
+                        <td className="px-5 py-4">
+                          <div className="flex flex-col gap-1.5">
+                            <span className={`inline-block px-2 py-1 rounded-md text-xs font-semibold w-fit ${v.color}`}>
                               {v.text}
                             </span>
                             <select
                               defaultValue=""
                               onChange={(e) => { if (e.target.value) patchUser(user.id, { valid_days: parseInt(e.target.value) }); }}
-                              className="text-xs border border-gray-200 rounded-md px-1.5 py-1 text-gray-600 focus:outline-none"
+                              className="text-xs border border-gray-200 rounded-md px-1.5 py-1 text-gray-600 focus:outline-none w-fit"
                             >
                               <option value="" disabled>Extend…</option>
                               {VALIDITY_OPTIONS.map(o => (
@@ -207,28 +248,58 @@ export default function AdminPage() {
                           </div>
                         </td>
 
-                        <td className="px-6 py-4">
-                          <div className="flex flex-wrap gap-1.5">
-                            {PERMISSION_LABELS.map(({ key, label, icon }) => (
-                              <button
-                                key={key}
-                                onClick={() => patchUser(user.id, {
-                                  permissions: { ...user.permissions, [key]: !user.permissions[key] }
-                                })}
-                                title={label}
-                                className={`text-sm px-2 py-1 rounded-md transition-colors ${
-                                  user.permissions[key]
-                                    ? "bg-blue-100 text-blue-700 hover:bg-blue-200"
-                                    : "bg-gray-100 text-gray-400 hover:bg-gray-200 line-through"
-                                }`}
-                              >
-                                {icon} {label}
-                              </button>
-                            ))}
+                        {/* Daily limit */}
+                        <td className="px-5 py-4">
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="number"
+                              min={0}
+                              defaultValue={user.daily_limit ?? ""}
+                              placeholder="∞"
+                              onBlur={(e) => {
+                                const val = e.target.value === "" ? null : parseInt(e.target.value);
+                                patchUser(user.id, { daily_limit: val } as never);
+                              }}
+                              className="w-16 border border-gray-200 rounded-md px-2 py-1 text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-300"
+                            />
+                            <span className="text-xs text-gray-400">/day</span>
                           </div>
                         </td>
 
-                        <td className="px-6 py-4">
+                        {/* Feature + Template toggles */}
+                        <td className="px-5 py-4">
+                          <div className="flex gap-6">
+                            {/* Features */}
+                            <div>
+                              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Features</p>
+                              <div className="space-y-2">
+                                {FEATURE_LABELS.map(({ key, label, icon }) => (
+                                  <div key={key} className="flex items-center gap-2">
+                                    <Toggle on={user.permissions[key]}
+                                      onChange={(v) => patchUser(user.id, { permissions: { ...user.permissions, [key]: v } })} />
+                                    <span className={`text-xs ${user.permissions[key] ? "text-gray-700" : "text-gray-400"}`}>{icon} {label}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                            {/* Templates */}
+                            <div>
+                              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Templates</p>
+                              <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                                {TEMPLATE_LABELS.map(({ key, label, icon }) => (
+                                  <div key={key} className="flex items-center gap-2">
+                                    <Toggle on={user.permissions[key]}
+                                      onChange={(v) => patchUser(user.id, { permissions: { ...user.permissions, [key]: v } })} />
+                                    <span className={`text-xs ${user.permissions[key] ? "text-gray-700" : "text-gray-400"}`}>{icon} {label}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Delete */}
+                        <td className="px-5 py-4">
                           <button
                             onClick={() => deleteUser(user.id)}
                             className="text-xs text-red-500 hover:text-red-700 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors"
@@ -268,34 +339,58 @@ export default function AdminPage() {
                 placeholder="Set a password"
                 className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Access Validity</label>
-              <div className="flex flex-wrap gap-2">
-                {VALIDITY_OPTIONS.map(o => (
-                  <button key={o.days}
-                    onClick={() => setNewUser({ ...newUser, valid_days: o.days })}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
-                      newUser.valid_days === o.days
-                        ? "bg-blue-600 text-white border-blue-600"
-                        : "bg-white text-gray-600 border-gray-300 hover:border-blue-400"
-                    }`}>
-                    {o.label}
-                  </button>
-                ))}
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Access Validity</label>
+                <div className="flex flex-wrap gap-2">
+                  {VALIDITY_OPTIONS.map(o => (
+                    <button key={o.days}
+                      onClick={() => setNewUser({ ...newUser, valid_days: o.days })}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                        newUser.valid_days === o.days
+                          ? "bg-blue-600 text-white border-blue-600"
+                          : "bg-white text-gray-600 border-gray-300 hover:border-blue-400"
+                      }`}>
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Daily Image Limit</label>
+                <input type="number" min={0} value={newUser.daily_limit}
+                  onChange={e => setNewUser({ ...newUser, daily_limit: e.target.value })}
+                  placeholder="Unlimited"
+                  className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                <p className="text-xs text-gray-400 mt-1">Leave blank = unlimited</p>
               </div>
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-2">Feature Permissions</label>
-              <div className="space-y-2">
-                {PERMISSION_LABELS.map(({ key, label, icon }) => (
-                  <label key={key} className="flex items-center gap-3 cursor-pointer">
-                    <input type="checkbox"
-                      checked={newUser.permissions[key]}
-                      onChange={e => setNewUser({ ...newUser, permissions: { ...newUser.permissions, [key]: e.target.checked } })}
-                      className="w-4 h-4 accent-blue-600" />
-                    <span className="text-sm text-gray-700">{icon} {label}</span>
-                  </label>
-                ))}
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-2">Features</label>
+                <div className="space-y-2.5">
+                  {FEATURE_LABELS.map(({ key, label, icon }) => (
+                    <div key={key} className="flex items-center justify-between">
+                      <span className="text-sm text-gray-700">{icon} {label}</span>
+                      <Toggle on={newUser.permissions[key]}
+                        onChange={v => setNewUser({ ...newUser, permissions: { ...newUser.permissions, [key]: v } })} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-2">Templates</label>
+                <div className="space-y-2.5">
+                  {TEMPLATE_LABELS.map(({ key, label, icon }) => (
+                    <div key={key} className="flex items-center justify-between">
+                      <span className="text-sm text-gray-700">{icon} {label}</span>
+                      <Toggle on={newUser.permissions[key]}
+                        onChange={v => setNewUser({ ...newUser, permissions: { ...newUser.permissions, [key]: v } })} />
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
 

@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
   const supabase = await requireAdmin();
   if (!supabase) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { email, password, valid_days, permissions } = await req.json();
+  const { email, password, valid_days, daily_limit, permissions } = await req.json();
   if (!email || !password) return NextResponse.json({ error: "Email and password required" }, { status: 400 });
 
   const admin = createAdminClient();
@@ -52,6 +52,7 @@ export async function POST(req: NextRequest) {
       role: "user",
       is_enabled: true,
       valid_until,
+      daily_limit: daily_limit ?? null,
       permissions: permissions ?? { edit: true, save: true, post_telegram: true, amazon_cookie: true, all_templates: true },
     })
     .select()
