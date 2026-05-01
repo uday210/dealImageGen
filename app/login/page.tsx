@@ -13,11 +13,11 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPass, setShowPass] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = createClient();
 
-  // If middleware redirected here with a reason (disabled/expired), sign out the stale session
   useEffect(() => {
     const reason = searchParams.get("reason");
     if (reason) {
@@ -68,25 +68,46 @@ function LoginForm() {
   }
 
   return (
-    <form onSubmit={handleLogin} className="space-y-4">
+    <form onSubmit={handleLogin} className="space-y-5">
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-        <input type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="you@example.com"
-          className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        <label className="block text-sm font-semibold text-slate-700 mb-1.5">Email address</label>
+        <input
+          type="email" value={email} onChange={e => setEmail(e.target.value)} required
+          placeholder="you@example.com" autoComplete="email"
+          className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm bg-slate-50 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:bg-white transition-colors"
+        />
       </div>
+
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-        <input type="password" value={password} onChange={e => setPassword(e.target.value)} required placeholder="••••••••"
-          className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        <label className="block text-sm font-semibold text-slate-700 mb-1.5">Password</label>
+        <div className="relative">
+          <input
+            type={showPass ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)} required
+            placeholder="••••••••" autoComplete="current-password"
+            className="w-full border border-slate-200 rounded-xl px-4 py-3 pr-11 text-sm bg-slate-50 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:bg-white transition-colors"
+          />
+          <button type="button" onClick={() => setShowPass(v => !v)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-semibold transition-colors">
+            {showPass ? "Hide" : "Show"}
+          </button>
+        </div>
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">{error}</div>
+        <div className="flex items-start gap-2.5 bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">
+          <span className="flex-shrink-0 text-base">⚠️</span>
+          <span>{error}</span>
+        </div>
       )}
 
-      <button type="submit" disabled={loading}
-        className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold py-3 rounded-xl transition-colors">
-        {loading ? "Signing in..." : "Sign In"}
+      <button type="submit" disabled={loading || !email || !password}
+        className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold py-3.5 rounded-xl transition-all shadow-sm text-sm tracking-wide">
+        {loading ? (
+          <span className="flex items-center justify-center gap-2">
+            <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+            Signing in…
+          </span>
+        ) : "Sign In →"}
       </button>
     </form>
   );
@@ -94,16 +115,77 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8">
-        <div className="text-center mb-8">
-          <div className="text-4xl mb-3">🏷️</div>
-          <h1 className="text-2xl font-bold text-gray-900">Deal Image Generator</h1>
-          <p className="text-sm text-gray-500 mt-1">Sign in to continue</p>
+    <div className="min-h-screen flex">
+
+      {/* ── Left brand panel (desktop only) ───────────────────────── */}
+      <div className="hidden lg:flex w-[45%] bg-slate-950 flex-col items-center justify-center p-14 relative overflow-hidden">
+        {/* Ambient glows */}
+        <div className="absolute top-0 left-0 w-80 h-80 bg-blue-600 opacity-10 rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2 pointer-events-none"></div>
+        <div className="absolute bottom-0 right-0 w-96 h-96 bg-indigo-600 opacity-10 rounded-full blur-3xl translate-x-1/3 translate-y-1/3 pointer-events-none"></div>
+
+        <div className="relative z-10 max-w-sm w-full">
+          {/* DS Logo */}
+          <div className="w-20 h-20 rounded-2xl bg-slate-900 border border-slate-700 flex items-center justify-center mb-8 shadow-2xl">
+            <span className="font-black text-4xl tracking-tighter leading-none">
+              <span className="text-white">D</span>
+              <span className="bg-gradient-to-br from-blue-400 to-blue-600 bg-clip-text text-transparent">S</span>
+            </span>
+          </div>
+
+          <h1 className="text-4xl font-black text-white mb-2 tracking-tight">Deal Studio</h1>
+          <p className="text-slate-400 text-base mb-10 leading-relaxed">
+            Turn Amazon product links into professional deal cards — and post them to Telegram in seconds.
+          </p>
+
+          <div className="space-y-4">
+            {[
+              { icon: "⚡", label: "8 templates, generated instantly" },
+              { icon: "✏️", label: "Edit every field before posting" },
+              { icon: "✈️", label: "One-click Telegram posting" },
+              { icon: "👥", label: "Multi-user with admin controls" },
+            ].map(f => (
+              <div key={f.label} className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center text-base flex-shrink-0">
+                  {f.icon}
+                </div>
+                <span className="text-slate-300 text-sm font-medium">{f.label}</span>
+              </div>
+            ))}
+          </div>
         </div>
-        <Suspense fallback={null}>
-          <LoginForm />
-        </Suspense>
+      </div>
+
+      {/* ── Right form panel ───────────────────────────────────────── */}
+      <div className="flex-1 bg-white flex items-center justify-center p-8">
+        <div className="w-full max-w-sm">
+
+          {/* Mobile logo */}
+          <div className="lg:hidden flex items-center gap-3 mb-10">
+            <div className="w-12 h-12 rounded-xl bg-slate-950 flex items-center justify-center shadow-lg">
+              <span className="font-black text-xl tracking-tighter leading-none">
+                <span className="text-white">D</span>
+                <span className="bg-gradient-to-br from-blue-400 to-blue-600 bg-clip-text text-transparent">S</span>
+              </span>
+            </div>
+            <div>
+              <p className="font-black text-slate-900 text-lg leading-none">Deal Studio</p>
+              <p className="text-slate-400 text-xs mt-0.5">Deal image generator</p>
+            </div>
+          </div>
+
+          <div className="mb-8">
+            <h2 className="text-2xl font-black text-slate-900 tracking-tight">Welcome back</h2>
+            <p className="text-slate-500 text-sm mt-1">Sign in to your workspace</p>
+          </div>
+
+          <Suspense fallback={null}>
+            <LoginForm />
+          </Suspense>
+
+          <p className="text-center text-xs text-slate-400 mt-8">
+            Access is by invitation only. Contact your admin to get an account.
+          </p>
+        </div>
       </div>
     </div>
   );

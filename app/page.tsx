@@ -137,11 +137,18 @@ function RowEditor({ title, titleColor, borderColor, addBg, rows, valuePlacehold
   );
 }
 
+interface ToastMsg { id: string; message: string; type: "success" | "error" | "info"; }
+
 export default function Home() {
   const [activeTab, setActiveTab] = useState<Tab>("new-deal");
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string>("user");
   const [permissions, setPermissions] = useState<UserPermissions>(DEFAULT_PERMISSIONS);
+  const [dailyLimit, setDailyLimit] = useState<number | null>(null);
+  const [todayCount, setTodayCount] = useState<number>(0);
+  const [toasts, setToasts] = useState<ToastMsg[]>([]);
+  const [postsSearch, setPostsSearch] = useState("");
+  const [postsFilter, setPostsFilter] = useState<string>("all");
   const router = useRouter();
 
   const [url, setUrl] = useState("");
@@ -175,6 +182,12 @@ export default function Home() {
 
   const visibleStyles = STYLES.filter(s => (permissions[`tpl_${s.id}` as keyof UserPermissions] as boolean | undefined) !== false);
 
+  function showToast(message: string, type: ToastMsg["type"] = "success") {
+    const id = Date.now().toString();
+    setToasts(prev => [...prev, { id, message, type }]);
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3500);
+  }
+
   const apiFetch = useCallback(async (url: string, options?: RequestInit): Promise<Response> => {
     const res = await fetch(url, options);
     if (res.status === 401) {
@@ -195,12 +208,18 @@ export default function Home() {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) { router.push("/login"); return; }
       setUserEmail(user.email ?? null);
-      supabase.from("app_users").select("permissions, role, is_enabled, valid_until").eq("id", user.id).single()
+      supabase.from("app_users").select("permissions, role, is_enabled, valid_until, daily_limit").eq("id", user.id).single()
         .then(async ({ data }) => {
           if (data && !data.is_enabled) { await supabase.auth.signOut(); router.push("/login?reason=disabled"); return; }
           if (data?.valid_until && new Date(data.valid_until) < new Date()) { await supabase.auth.signOut(); router.push("/login?reason=expired"); return; }
           if (data?.permissions) setPermissions({ ...DEFAULT_PERMISSIONS, ...(data.permissions as Partial<UserPermissions>) });
           if (data?.role) setUserRole(data.role);
+          if (data?.daily_limit != null) {
+            setDailyLimit(data.daily_limit);
+            const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+            const { count } = await supabase.from("generation_logs").select("*", { count: "exact", head: true }).eq("user_id", user.id).gte("created_at", todayStart.toISOString());
+            setTodayCount(count ?? 0);
+          }
         });
     });
   }, [router]);
@@ -270,7 +289,7 @@ export default function Home() {
     try {
       const res = await apiFetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ product: prod, style }) });
       const data = await res.json();
-      if (res.ok) { setGeneratedImages(prev => ({ ...prev, [style]: data.image })); return data.image as string; }
+      if (res.ok) { setGeneratedImages(prev => ({ ...prev, [style]: data.image })); setTodayCount(c => c + 1); return data.image as string; }
       else if (res.status === 429) setError(data.error);
     } catch {}
     finally { setGeneratingStyles(prev => { const n = new Set(prev); n.delete(style); return n; }); }
@@ -292,7 +311,8 @@ export default function Home() {
       if (!res.ok) throw new Error(data.error);
       setSavedPostIds(prev => ({ ...prev, [style]: data.post.id }));
       setPostsLoaded(false);
-    } catch (e: unknown) { alert("Save failed: " + (e instanceof Error ? e.message : "Unknown error")); }
+      showToast("Saved to history ✓");
+    } catch (e: unknown) { showToast("Save failed: " + (e instanceof Error ? e.message : "Unknown error"), "error"); }
     finally { setSavingStyles(prev => { const n = new Set(prev); n.delete(style); return n; }); }
   }
 
@@ -314,19 +334,39 @@ export default function Home() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || data.message);
       setTelegramResult("✅ Posted to Telegram!");
+      showToast("Posted to Telegram successfully! ✈️");
       const savedId = savedPostIds[selectedStyle];
       if (savedId) await apiFetch("/api/posts", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: savedId }) });
-    } catch (e: unknown) { setTelegramResult("❌ " + (e instanceof Error ? e.message : "Failed")); }
+    } catch (e: unknown) { const msg = e instanceof Error ? e.message : "Failed"; setTelegramResult("❌ " + msg); showToast(msg, "error"); }
     finally { setTelegramLoading(false); }
   }
 
-  function copyCaption(post: DealPost) { navigator.clipboard.writeText(post.caption); setCopiedId(post.id); setTimeout(() => setCopiedId(null), 2000); }
+  function copyCaption(post: DealPost) { navigator.clipboard.writeText(post.caption); setCopiedId(post.id); setTimeout(() => setCopiedId(null), 2000); showToast("Caption copied to clipboard"); }
 
   const generatedCount = Object.keys(generatedImages).length;
   const userInitial = userEmail?.[0]?.toUpperCase() || "?";
+  const usagePct = dailyLimit ? Math.min(100, Math.round((todayCount / dailyLimit) * 100)) : 0;
+  const usageNearLimit = dailyLimit != null && todayCount >= dailyLimit * 0.8;
+  const filteredPosts = savedPosts.filter(p => {
+    const matchSearch = !postsSearch || p.product_title.toLowerCase().includes(postsSearch.toLowerCase());
+    const matchFilter = postsFilter === "all" || p.template_style === postsFilter;
+    return matchSearch && matchFilter;
+  });
 
   return (
     <main className="min-h-screen bg-slate-50">
+
+      {/* ── Toast notifications ───────────────────────────────────── */}
+      <div className="fixed bottom-5 right-5 z-[60] flex flex-col gap-2 pointer-events-none">
+        {toasts.map(t => (
+          <div key={t.id} className={`flex items-center gap-3 px-4 py-3 rounded-xl shadow-xl text-sm font-semibold text-white pointer-events-auto animate-in slide-in-from-bottom-2 ${
+            t.type === "success" ? "bg-emerald-600" : t.type === "error" ? "bg-red-600" : "bg-slate-800"
+          }`}>
+            <span>{t.type === "success" ? "✓" : t.type === "error" ? "✕" : "ℹ"}</span>
+            {t.message}
+          </div>
+        ))}
+      </div>
 
       {/* ── Preview Modal (New Deal) ──────────────────────────────── */}
       {previewImage && (
@@ -507,42 +547,61 @@ export default function Home() {
       {/* ══════════════════════════════════════════════════════════════
           HEADER
       ══════════════════════════════════════════════════════════════ */}
-      <header className="bg-slate-900 border-b border-slate-800 sticky top-0 z-40">
+      <header className="bg-slate-950 border-b border-slate-800 sticky top-0 z-40">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between gap-4">
-          {/* Logo */}
+          {/* DS Logo */}
           <div className="flex items-center gap-3 flex-shrink-0">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center shadow-lg text-white font-bold text-sm">D</div>
+            <div className="w-9 h-9 rounded-xl bg-slate-900 border border-slate-700 flex items-center justify-center shadow-md">
+              <span className="font-black text-[17px] tracking-tighter leading-none select-none">
+                <span className="text-white">D</span>
+                <span className="bg-gradient-to-br from-blue-400 to-blue-600 bg-clip-text text-transparent">S</span>
+              </span>
+            </div>
             <span className="text-white font-bold text-base tracking-tight">Deal Studio</span>
           </div>
 
           {/* Tabs */}
-          <nav className="flex items-center bg-slate-800 rounded-xl p-1 gap-0.5 border border-slate-700">
+          <nav className="flex items-center bg-slate-900 rounded-xl p-1 gap-0.5 border border-slate-800">
             <button onClick={() => switchTab("new-deal")}
-              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${activeTab === "new-deal" ? "bg-white text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-200"}`}>
+              className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${activeTab === "new-deal" ? "bg-white text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-200"}`}>
               ⚡ New Deal
             </button>
             {permissions.save && (
               <button onClick={() => switchTab("saved-posts")}
-                className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${activeTab === "saved-posts" ? "bg-white text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-200"}`}>
-                📜 Saved Posts
+                className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all relative ${activeTab === "saved-posts" ? "bg-white text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-200"}`}>
+                📜 Saved
+                {savedPosts.length > 0 && activeTab !== "saved-posts" && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-blue-500 rounded-full text-[9px] font-bold text-white flex items-center justify-center">
+                    {savedPosts.length > 9 ? "9+" : savedPosts.length}
+                  </span>
+                )}
               </button>
             )}
           </nav>
 
-          {/* User */}
+          {/* Right: usage + admin + user */}
           <div className="flex items-center gap-2 flex-shrink-0">
+            {/* Daily usage pill */}
+            {dailyLimit != null && (
+              <div className={`hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-semibold ${usageNearLimit ? "bg-amber-950 border-amber-800 text-amber-400" : "bg-slate-900 border-slate-800 text-slate-400"}`}>
+                <div className="w-16 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                  <div className={`h-full rounded-full transition-all ${usageNearLimit ? "bg-amber-500" : "bg-blue-500"}`} style={{ width: `${usagePct}%` }}></div>
+                </div>
+                <span>{todayCount}/{dailyLimit}</span>
+              </div>
+            )}
             {userRole === "admin" && (
-              <a href="/admin" className="text-xs font-semibold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg border border-slate-700 transition-colors">
+              <a href="/admin" className="text-xs font-semibold text-slate-300 hover:text-white bg-slate-900 hover:bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-800 transition-colors">
                 ⚙️ Admin
               </a>
             )}
-            <div className="flex items-center gap-2 bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5">
-              <div className="w-6 h-6 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+            <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5">
+              <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-blue-700 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
                 {userInitial}
               </div>
-              <span className="text-xs text-slate-300 max-w-[120px] truncate hidden sm:block">{userEmail}</span>
-              <span className="text-slate-600 hidden sm:block">·</span>
-              <button onClick={handleSignOut} className="text-xs text-red-400 hover:text-red-300 font-medium transition-colors">Sign out</button>
+              <span className="text-xs text-slate-400 max-w-[120px] truncate hidden sm:block">{userEmail}</span>
+              <span className="text-slate-700 hidden sm:block">·</span>
+              <button onClick={handleSignOut} className="text-xs text-red-500 hover:text-red-400 font-semibold transition-colors">Out</button>
             </div>
           </div>
         </div>
@@ -806,7 +865,7 @@ export default function Home() {
                     className="inline-flex items-center gap-2 bg-slate-900 hover:bg-slate-700 disabled:bg-slate-200 disabled:text-slate-400 text-white px-4 py-2.5 rounded-xl font-semibold text-sm transition-all">
                     ↓ Download
                   </button>
-                  <button onClick={() => navigator.clipboard.writeText(caption)}
+                  <button onClick={() => { navigator.clipboard.writeText(caption); showToast("Caption copied to clipboard"); }}
                     className="inline-flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-800 px-4 py-2.5 rounded-xl font-semibold text-sm transition-all">
                     📋 Copy Caption
                   </button>
@@ -897,10 +956,32 @@ export default function Home() {
             </button>
           </div>
 
+          {/* Search + Filter */}
+          {postsLoaded && savedPosts.length > 0 && (
+            <div className="flex flex-col sm:flex-row gap-3 mb-6">
+              <div className="relative flex-1">
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none">🔍</span>
+                <input type="text" value={postsSearch} onChange={e => setPostsSearch(e.target.value)} placeholder="Search by product name…"
+                  className="w-full pl-9 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 placeholder-slate-400" />
+              </div>
+              <select value={postsFilter} onChange={e => setPostsFilter(e.target.value)}
+                className="border border-slate-200 rounded-xl px-4 py-2.5 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:w-44">
+                <option value="all">All templates</option>
+                {STYLES.map(s => <option key={s.id} value={s.id}>{s.emoji} {s.label}</option>)}
+              </select>
+            </div>
+          )}
+
           {postsLoading ? (
             <div className="text-center py-24">
               <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
               <p className="text-slate-500 font-medium">Loading saved posts…</p>
+            </div>
+          ) : filteredPosts.length === 0 && postsSearch ? (
+            <div className="text-center py-16">
+              <p className="text-4xl mb-3">🔍</p>
+              <p className="text-slate-600 font-semibold">No results for &quot;{postsSearch}&quot;</p>
+              <button onClick={() => setPostsSearch("")} className="mt-3 text-sm text-blue-600 hover:underline">Clear search</button>
             </div>
           ) : savedPosts.length === 0 ? (
             <div className="text-center py-24">
@@ -914,7 +995,7 @@ export default function Home() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-              {savedPosts.map(post => (
+              {filteredPosts.map(post => (
                 <div key={post.id} className="bg-white rounded-2xl border border-slate-200 overflow-hidden hover:shadow-lg hover:border-slate-300 transition-all group">
                   <div className="relative cursor-zoom-in" onClick={() => setSavedPreview(post)}>
                     <img src={post.image_path} alt={post.product_title} className="w-full object-cover group-hover:scale-[1.01] transition-transform duration-300" />
