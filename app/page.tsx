@@ -473,6 +473,26 @@ export default function Home() {
                       ))}
                     </div>
 
+                    {/* Coupon / Bank offer */}
+                    <div className="grid grid-cols-2 gap-2">
+                      {([
+                        { label: "🎟️ Coupon Discount", key: "couponDiscount", placeholder: "-₹500" },
+                        { label: "🏦 Bank Offer", key: "bankDiscount", placeholder: "Upto ₹2,500" },
+                      ] as { label: string; key: keyof ProductData; placeholder: string }[]).map(f => (
+                        <div key={f.key}>
+                          <label className="block text-xs font-medium text-gray-500 mb-1">{f.label}</label>
+                          <div className="flex gap-1 items-center">
+                            <input type="text" value={(product[f.key] as string) || ""}
+                              onChange={(e) => setProduct({ ...product, [f.key]: e.target.value })}
+                              placeholder={f.placeholder}
+                              className="flex-1 min-w-0 border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                            <button onClick={() => setProduct({ ...product, [f.key]: "" })}
+                              className="text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg p-1.5 flex-shrink-0">✕</button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
                     {/* Price Breakdown Rows */}
                     <RowEditor
                       title="Price Breakdown Rows"
