@@ -84,11 +84,27 @@ export async function scrapeProduct(url: string, cookieString?: string): Promise
 
     // Extract image via DOM + raw text for AI
     const { image, pageText } = await page.evaluate(() => {
+      // Prefer data-a-dynamic-image — a JSON map of {url: [w,h]} with all resolutions.
+      // Pick the highest-resolution URL so the generated card always shows a crisp image
+      // regardless of whether the page was loaded in mobile or desktop mode.
+      function bestImageFromAttr(el: Element | null): string {
+        if (!el) return "";
+        const raw = el.getAttribute("data-a-dynamic-image");
+        if (!raw) return "";
+        try {
+          const map = JSON.parse(raw) as Record<string, [number, number]>;
+          const best = Object.entries(map).sort((a, b) => b[1][0] - a[1][0])[0];
+          return best ? best[0] : "";
+        } catch { return ""; }
+      }
+
       const image =
+        bestImageFromAttr(document.querySelector("#landingImage")) ||
+        bestImageFromAttr(document.querySelector("#imgBlkFront")) ||
+        bestImageFromAttr(document.querySelector("img[data-a-dynamic-image]")) ||
         (document.querySelector("#landingImage") as HTMLImageElement)?.src ||
         (document.querySelector("#imgBlkFront") as HTMLImageElement)?.src ||
         (document.querySelector("#ebooksImgBlkFront") as HTMLImageElement)?.src ||
-        (document.querySelector("img[data-a-dynamic-image]") as HTMLImageElement)?.src ||
         (document.querySelector(".a-dynamic-image") as HTMLImageElement)?.src ||
         (document.querySelector("#main-image") as HTMLImageElement)?.src ||
         (document.querySelector("#imageBlock img") as HTMLImageElement)?.src ||
