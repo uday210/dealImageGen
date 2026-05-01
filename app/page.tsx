@@ -1,5 +1,15 @@
 "use client";
 import { useState, useCallback, useEffect } from "react";
+import { createClient } from "@/lib/supabase/client";
+import { useRouter } from "next/navigation";
+
+interface UserPermissions {
+  edit: boolean;
+  save: boolean;
+  post_telegram: boolean;
+  amazon_cookie: boolean;
+  all_templates: boolean;
+}
 
 type TemplateStyle = "simple" | "detailed" | "minimal" | "bold" | "gradient" | "vibrant" | "premium" | "news";
 
@@ -160,6 +170,27 @@ export default function Home() {
   const [testLoading, setTestLoading] = useState(false);
   const [testResult, setTestResult] = useState<{diagnosis: string; tips?: string[]; chatInfo?: {type:string;title:string;id:number}; botInfo?: {username:string}} | null>(null);
 
+  // Auth state
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [permissions, setPermissions] = useState<UserPermissions>({
+    edit: true, save: true, post_telegram: true, amazon_cookie: true, all_templates: true,
+  });
+  const router = useRouter();
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) { router.push("/login"); return; }
+      setUserEmail(user.email ?? null);
+      supabase.from("app_users").select("permissions").eq("id", user.id).single()
+        .then(({ data }) => { if (data?.permissions) setPermissions(data.permissions as UserPermissions); });
+    });
+  }, [router]);
+
+  async function handleSignOut() {
+    await createClient().auth.signOut();
+    router.push("/login");
+  }
 
   // Amazon cookie state
   const [amazonCookies, setAmazonCookies] = useState("");
@@ -403,25 +434,31 @@ export default function Home() {
                 {STYLES.find(s => s.id === previewImage.style)?.emoji} {previewImage.label} Template
               </span>
               <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setShowModalEdit(v => !v)}
-                  className={`text-xs font-semibold px-4 py-2 rounded-lg transition-colors ${showModalEdit ? "bg-blue-600 text-white" : "bg-blue-50 hover:bg-blue-100 text-blue-700"}`}
-                >✏️ Edit</button>
+                {permissions.edit && (
+                  <button
+                    onClick={() => setShowModalEdit(v => !v)}
+                    className={`text-xs font-semibold px-4 py-2 rounded-lg transition-colors ${showModalEdit ? "bg-blue-600 text-white" : "bg-blue-50 hover:bg-blue-100 text-blue-700"}`}
+                  >✏️ Edit</button>
+                )}
                 <button
                   onClick={() => { downloadImage(previewImage.src, previewImage.style); }}
                   className="bg-gray-800 hover:bg-gray-900 text-white text-xs font-semibold px-4 py-2 rounded-lg transition-colors"
                 >⬇ Download</button>
-                <button
-                  onClick={() => handleSave(previewImage.style, previewImage.src)}
-                  disabled={savingStyles.has(previewImage.style) || !!savedPostIds[previewImage.style]}
-                  className={`text-xs font-semibold px-4 py-2 rounded-lg transition-colors disabled:opacity-60 ${savedPostIds[previewImage.style] ? "bg-green-100 text-green-700" : "bg-gray-100 hover:bg-gray-200 text-gray-700"}`}
-                >
-                  {savingStyles.has(previewImage.style) ? "Saving..." : savedPostIds[previewImage.style] ? "✅ Saved" : "💾 Save"}
-                </button>
-                <button
-                  onClick={() => { setSelectedStyle(previewImage.style); setShowTelegramForm(true); setPreviewImage(null); }}
-                  className="bg-blue-500 hover:bg-blue-600 text-white text-xs font-semibold px-4 py-2 rounded-lg transition-colors"
-                >✈️ Post to Telegram</button>
+                {permissions.save && (
+                  <button
+                    onClick={() => handleSave(previewImage.style, previewImage.src)}
+                    disabled={savingStyles.has(previewImage.style) || !!savedPostIds[previewImage.style]}
+                    className={`text-xs font-semibold px-4 py-2 rounded-lg transition-colors disabled:opacity-60 ${savedPostIds[previewImage.style] ? "bg-green-100 text-green-700" : "bg-gray-100 hover:bg-gray-200 text-gray-700"}`}
+                  >
+                    {savingStyles.has(previewImage.style) ? "Saving..." : savedPostIds[previewImage.style] ? "✅ Saved" : "💾 Save"}
+                  </button>
+                )}
+                {permissions.post_telegram && (
+                  <button
+                    onClick={() => { setSelectedStyle(previewImage.style); setShowTelegramForm(true); setPreviewImage(null); }}
+                    className="bg-blue-500 hover:bg-blue-600 text-white text-xs font-semibold px-4 py-2 rounded-lg transition-colors"
+                  >✈️ Post to Telegram</button>
+                )}
                 <button onClick={() => setPreviewImage(null)}
                   className="text-gray-400 hover:text-gray-600 text-xl w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100">✕</button>
               </div>
@@ -603,14 +640,22 @@ export default function Home() {
           <h1 className="text-2xl font-bold text-gray-900">Deal Image Generator</h1>
           <p className="text-sm text-gray-500 mt-0.5">
             Paste Amazon link → Generate deal cards → Post to Telegram
-            <span className="ml-3 text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
-              No AI · HTML/CSS rendered by Chrome
-            </span>
           </p>
         </div>
-        <a href="/history" className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-5 py-2.5 rounded-xl font-semibold text-sm transition-colors">
-          📜 Saved Posts
-        </a>
+        <div className="flex items-center gap-3">
+          {permissions.save && (
+            <a href="/history" className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-xl font-semibold text-sm transition-colors">
+              📜 Saved Posts
+            </a>
+          )}
+          <div className="text-right">
+            <p className="text-xs text-gray-500 truncate max-w-[160px]">{userEmail}</p>
+            <button onClick={handleSignOut}
+              className="text-xs text-red-500 hover:text-red-700 font-medium transition-colors">
+              Sign Out
+            </button>
+          </div>
+        </div>
       </div>
 
       <div className="max-w-6xl mx-auto px-6 py-8 space-y-6">
@@ -642,7 +687,7 @@ export default function Home() {
           </div>
 
           {/* Amazon Cookie Config */}
-          <div className="mt-3">
+          {permissions.amazon_cookie && <div className="mt-3">
             <button
               onClick={() => setShowCookiePanel(!showCookiePanel)}
               className="flex items-center gap-2 text-xs text-gray-500 hover:text-gray-700 transition-colors"
@@ -700,7 +745,7 @@ export default function Home() {
                 </div>
               </div>
             )}
-          </div>
+          </div>}
 
           {error && (
             <div className="mt-3 bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl">
@@ -757,7 +802,7 @@ export default function Home() {
 
             {/* Template selector cards */}
             <div className="grid grid-cols-4 gap-3 mb-6">
-              {STYLES.map((s) => {
+              {(permissions.all_templates ? STYLES : STYLES.slice(0, 4)).map((s) => {
                 const isGenerating = generatingStyles.has(s.id);
                 const isDone = !!generatedImages[s.id];
                 return (
