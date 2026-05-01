@@ -8,6 +8,14 @@ interface SavingsItem {
   amount: string;
 }
 
+type PriceRowType = "normal" | "bold" | "free" | "total" | "sub";
+
+interface PriceRow {
+  label: string;
+  value: string;
+  type: PriceRowType;
+}
+
 interface ProductData {
   title: string;
   image: string;
@@ -29,6 +37,33 @@ interface ProductData {
   savingsItems?: SavingsItem[];
   deliveryCharge?: string;
   noCostEmiDiscount?: string;
+  interestCharged?: string;
+  totalCostToLender?: string;
+  priceBreakdownRows?: PriceRow[];
+  postSavingsRows?: PriceRow[];
+}
+
+const ROW_TYPE_LABELS: Record<PriceRowType, { label: string; color: string }> = {
+  normal: { label: "Normal",    color: "bg-gray-100 text-gray-600" },
+  bold:   { label: "Bold",      color: "bg-slate-200 text-slate-800" },
+  free:   { label: "Free/Green",color: "bg-green-100 text-green-700" },
+  total:  { label: "Total",     color: "bg-red-100 text-red-700" },
+  sub:    { label: "Sub-text",  color: "bg-yellow-100 text-yellow-700" },
+};
+
+function enrichProduct(data: ProductData): ProductData {
+  const origNum = parseInt(data.originalPrice?.replace(/[^\d]/g, "") || "0");
+  const priceBreakdownRows: PriceRow[] = [
+    ...(origNum ? [{ label: "Items (MRP)", value: data.originalPrice || "", type: "normal" as PriceRowType }] : []),
+    { label: "Delivery", value: data.deliveryCharge || "FREE", type: "free" as PriceRowType },
+    ...(origNum ? [{ label: "Total", value: data.originalPrice || "", type: "bold" as PriceRowType }] : []),
+  ];
+  const postSavingsRows: PriceRow[] = [
+    { label: "Order Total", value: data.orderTotal || data.currentPrice || "", type: "total" as PriceRowType },
+    ...(data.interestCharged ? [{ label: "Interest (charged by lender)", value: data.interestCharged, type: "sub" as PriceRowType }] : []),
+    ...(data.totalCostToLender ? [{ label: "Total Cost (payable to lender)", value: data.totalCostToLender, type: "sub" as PriceRowType }] : []),
+  ];
+  return { ...data, priceBreakdownRows, postSavingsRows };
 }
 
 const STYLES: { id: TemplateStyle; label: string; desc: string; emoji: string; color: string }[] = [
@@ -41,6 +76,72 @@ const STYLES: { id: TemplateStyle; label: string; desc: string; emoji: string; c
   { id: "premium",  label: "Premium",  desc: "Black & gold, luxury",       emoji: "✨", color: "bg-yellow-50 border-yellow-200" },
   { id: "news",     label: "News",     desc: "Breaking deal style",        emoji: "📰", color: "bg-red-50 border-red-200" },
 ];
+
+function RowEditor({ title, titleColor, borderColor, addBg, rows, valuePlaceholder, onChange }: {
+  title: string;
+  titleColor: string;
+  borderColor: string;
+  addBg: string;
+  rows: PriceRow[];
+  valuePlaceholder: string;
+  onChange: (rows: PriceRow[]) => void;
+}) {
+  function update(i: number, patch: Partial<PriceRow>) {
+    const u = [...rows]; u[i] = { ...u[i], ...patch }; onChange(u);
+  }
+  function move(i: number, dir: -1 | 1) {
+    const u = [...rows]; [u[i], u[i+dir]] = [u[i+dir], u[i]]; onChange(u);
+  }
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <label className={`text-xs font-semibold uppercase tracking-wide ${titleColor}`}>{title}</label>
+        <button
+          onClick={() => onChange([...rows, { label: "", value: "", type: "normal" }])}
+          className={`text-xs font-semibold border px-3 py-1 rounded-lg transition-colors ${addBg}`}
+        >+ Add Row</button>
+      </div>
+      <div className="space-y-2">
+        {rows.length === 0 && (
+          <p className="text-xs text-gray-400 text-center py-2 border border-dashed border-gray-200 rounded-lg">
+            No rows — click &quot;+ Add Row&quot; to add one
+          </p>
+        )}
+        {rows.map((row, i) => (
+          <div key={i} className={`flex gap-1.5 items-center border ${borderColor} rounded-lg p-2 bg-white`}>
+            {/* Reorder */}
+            <div className="flex flex-col gap-0.5">
+              <button onClick={() => move(i, -1)} disabled={i === 0}
+                className="text-gray-400 hover:text-gray-700 disabled:opacity-20 text-[10px] leading-none px-1">▲</button>
+              <button onClick={() => move(i, 1)} disabled={i === rows.length - 1}
+                className="text-gray-400 hover:text-gray-700 disabled:opacity-20 text-[10px] leading-none px-1">▼</button>
+            </div>
+            {/* Label */}
+            <input type="text" value={row.label}
+              onChange={(e) => update(i, { label: e.target.value })}
+              placeholder="Label"
+              className="flex-1 border border-gray-200 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+            {/* Value */}
+            <input type="text" value={row.value}
+              onChange={(e) => update(i, { value: e.target.value })}
+              placeholder={valuePlaceholder}
+              className="w-28 border border-gray-200 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+            {/* Style picker */}
+            <select value={row.type} onChange={(e) => update(i, { type: e.target.value as PriceRowType })}
+              className="text-xs border border-gray-200 rounded-md px-1.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white">
+              {(Object.keys(ROW_TYPE_LABELS) as PriceRowType[]).map(t => (
+                <option key={t} value={t}>{ROW_TYPE_LABELS[t].label}</option>
+              ))}
+            </select>
+            {/* Remove */}
+            <button onClick={() => onChange(rows.filter((_, idx) => idx !== i))}
+              className="text-red-400 hover:text-red-600 hover:bg-red-50 rounded-md p-1.5 transition-colors flex-shrink-0">✕</button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function Home() {
   const [url, setUrl] = useState("");
@@ -107,8 +208,9 @@ export default function Home() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      setProduct(data);
-      buildCaption(data, url.trim());
+      const enriched = enrichProduct(data);
+      setProduct(enriched);
+      buildCaption(enriched, url.trim());
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to scrape");
     } finally {
@@ -468,76 +570,51 @@ export default function Home() {
 
               {/* Edit panel */}
               {showEditPanel && (
-                <div className="mt-2 bg-white border border-blue-200 rounded-xl p-4 space-y-4">
+                <div className="mt-2 bg-white border border-blue-200 rounded-xl p-4 space-y-5">
                   <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Edit Deal Details</p>
 
-                  {/* Title */}
+                  {/* ── Core fields ── */}
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1">Product Title</label>
-                    <input
-                      type="text"
-                      value={product.title}
+                    <input type="text" value={product.title}
                       onChange={(e) => setProduct({ ...product, title: e.target.value })}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                    />
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
                   </div>
-
-                  {/* Price row */}
                   <div className="grid grid-cols-3 gap-3">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Deal Price</label>
-                      <input type="text" value={product.currentPrice}
-                        onChange={(e) => setProduct({ ...product, currentPrice: e.target.value })}
-                        placeholder="₹35,990"
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">MRP</label>
-                      <input type="text" value={product.originalPrice}
-                        onChange={(e) => setProduct({ ...product, originalPrice: e.target.value })}
-                        placeholder="₹54,000"
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Discount %</label>
-                      <input type="text" value={product.discount}
-                        onChange={(e) => setProduct({ ...product, discount: e.target.value })}
-                        placeholder="-33%"
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
-                    </div>
+                    {([
+                      { label: "Deal Price", key: "currentPrice", placeholder: "₹35,990" },
+                      { label: "MRP", key: "originalPrice", placeholder: "₹54,000" },
+                      { label: "Discount %", key: "discount", placeholder: "-33%" },
+                    ] as { label: string; key: keyof ProductData; placeholder: string }[]).map(f => (
+                      <div key={f.key}>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">{f.label}</label>
+                        <input type="text" value={(product[f.key] as string) || ""}
+                          onChange={(e) => setProduct({ ...product, [f.key]: e.target.value })}
+                          placeholder={f.placeholder}
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                      </div>
+                    ))}
                   </div>
 
-                  {/* Delivery + Order Total */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">🚚 Delivery Charge</label>
-                      <input type="text" value={product.deliveryCharge || ""}
-                        onChange={(e) => setProduct({ ...product, deliveryCharge: e.target.value })}
-                        placeholder="FREE"
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">🧾 Order Total</label>
-                      <input type="text" value={product.orderTotal || ""}
-                        onChange={(e) => setProduct({ ...product, orderTotal: e.target.value })}
-                        placeholder="₹31,990"
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
-                    </div>
-                  </div>
+                  {/* ── Price Breakdown Rows ── */}
+                  <RowEditor
+                    title="Price Breakdown Rows"
+                    titleColor="text-blue-700"
+                    borderColor="border-blue-200"
+                    addBg="bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-700"
+                    rows={product.priceBreakdownRows || []}
+                    valuePlaceholder="₹36,990"
+                    onChange={(rows) => setProduct({ ...product, priceBreakdownRows: rows })}
+                  />
 
-                  {/* Savings Items section */}
+                  {/* ── Savings Items ── */}
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <label className="text-xs font-semibold text-green-700 uppercase tracking-wide">🏷️ Savings Items</label>
                       <button
-                        onClick={() => setProduct({
-                          ...product,
-                          savingsItems: [...(product.savingsItems || []), { label: "", amount: "" }]
-                        })}
+                        onClick={() => setProduct({ ...product, savingsItems: [...(product.savingsItems || []), { label: "", amount: "" }] })}
                         className="text-xs font-semibold text-green-700 bg-green-50 hover:bg-green-100 border border-green-200 px-3 py-1 rounded-lg transition-colors"
-                      >
-                        + Add Row
-                      </button>
+                      >+ Add Row</button>
                     </div>
                     <div className="space-y-2">
                       {(product.savingsItems || []).length === 0 && (
@@ -545,46 +622,42 @@ export default function Home() {
                           No savings rows — click &quot;+ Add Row&quot; to add one
                         </p>
                       )}
-                      {(product.savingsItems || []).map((item, i) => (
-                        <div key={i} className="flex gap-2 items-center">
-                          <input
-                            type="text"
-                            value={item.label}
-                            onChange={(e) => {
-                              const updated = [...(product.savingsItems || [])];
-                              updated[i] = { ...updated[i], label: e.target.value };
-                              setProduct({ ...product, savingsItems: updated });
-                            }}
-                            placeholder="e.g. Instant Bank Discount"
-                            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-                          />
-                          <input
-                            type="text"
-                            value={item.amount}
-                            onChange={(e) => {
-                              const updated = [...(product.savingsItems || [])];
-                              updated[i] = { ...updated[i], amount: e.target.value };
-                              setProduct({ ...product, savingsItems: updated });
-                            }}
-                            placeholder="-₹3,000"
-                            className="w-28 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-                          />
-                          <button
-                            onClick={() => {
-                              const updated = (product.savingsItems || []).filter((_, idx) => idx !== i);
-                              setProduct({ ...product, savingsItems: updated });
-                            }}
-                            className="text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg p-2 transition-colors flex-shrink-0"
-                            title="Remove row"
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      ))}
+                      {(product.savingsItems || []).map((item, i) => {
+                        const items = product.savingsItems || [];
+                        return (
+                          <div key={i} className="flex gap-2 items-center">
+                            <button onClick={() => { if (i === 0) return; const u = [...items]; [u[i-1],u[i]]=[u[i],u[i-1]]; setProduct({...product, savingsItems: u}); }}
+                              disabled={i === 0} className="text-gray-400 hover:text-gray-600 disabled:opacity-20 text-xs px-1">▲</button>
+                            <button onClick={() => { if (i === items.length-1) return; const u=[...items]; [u[i],u[i+1]]=[u[i+1],u[i]]; setProduct({...product, savingsItems: u}); }}
+                              disabled={i === items.length-1} className="text-gray-400 hover:text-gray-600 disabled:opacity-20 text-xs px-1">▼</button>
+                            <input type="text" value={item.label}
+                              onChange={(e) => { const u=[...items]; u[i]={...u[i],label:e.target.value}; setProduct({...product, savingsItems:u}); }}
+                              placeholder="e.g. Instant Bank Discount"
+                              className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+                            <input type="text" value={item.amount}
+                              onChange={(e) => { const u=[...items]; u[i]={...u[i],amount:e.target.value}; setProduct({...product, savingsItems:u}); }}
+                              placeholder="-₹3,000"
+                              className="w-28 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+                            <button onClick={() => setProduct({...product, savingsItems: items.filter((_,idx)=>idx!==i)})}
+                              className="text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg p-1.5 transition-colors">✕</button>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
 
-                  {/* EMI row */}
+                  {/* ── Post-Savings Rows ── */}
+                  <RowEditor
+                    title="After-Savings Rows"
+                    titleColor="text-orange-700"
+                    borderColor="border-orange-200"
+                    addBg="bg-orange-50 hover:bg-orange-100 border-orange-200 text-orange-700"
+                    rows={product.postSavingsRows || []}
+                    valuePlaceholder="₹31,990"
+                    onChange={(rows) => setProduct({ ...product, postSavingsRows: rows })}
+                  />
+
+                  {/* ── EMI ── */}
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs font-medium text-gray-500 mb-1">💳 No Cost EMI Amount</label>

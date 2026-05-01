@@ -10,6 +10,20 @@ export interface SavingsItem {
   amount: string;
 }
 
+// Row types control styling in the detailed template:
+// normal = standard label/value row
+// bold   = bold label + bold value (e.g. "Total")
+// free   = green value (e.g. "Delivery FREE")
+// total  = large red value (Order Total)
+// sub    = small gray label/value (Interest, Cost to lender)
+export type PriceRowType = "normal" | "bold" | "free" | "total" | "sub";
+
+export interface PriceRow {
+  label: string;
+  value: string;
+  type: PriceRowType;
+}
+
 export interface ProductData {
   title: string;
   image: string;
@@ -33,6 +47,9 @@ export interface ProductData {
   couponDiscount: string;
   bankDiscount: string;
   noCostEmiDiscount: string;
+  // Editable structured row arrays — populated client-side from flat fields
+  priceBreakdownRows?: PriceRow[];
+  postSavingsRows?: PriceRow[];
 }
 
 function parseCookieString(cookieStr: string): { name: string; value: string; domain: string; path: string }[] {

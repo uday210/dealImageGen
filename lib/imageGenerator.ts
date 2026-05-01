@@ -1,5 +1,5 @@
 import puppeteer from "puppeteer-core";
-import { ProductData } from "./scraper";
+import { ProductData, PriceRow } from "./scraper";
 
 const CHROME_PATH =
   process.env.CHROME_PATH ||
@@ -100,10 +100,33 @@ function detailedTemplate(p: ProductData): string {
   const hasEmi = !!(p.emiAmount && p.emiMonths);
   const emiOptions = p.emiOptions && p.emiOptions.length > 0 ? p.emiOptions : (hasEmi ? [{ amount: p.emiAmount, months: p.emiMonths }] : []);
   const savingsCount = savingsItems.length + (p.youSave ? 1 : 0);
+
+  // Build default rows when not explicitly set via edit panel
+  const priceBreakdownRows: PriceRow[] = p.priceBreakdownRows ?? [
+    ...(original ? [{ label: "Items (MRP)", value: `₹${original.toLocaleString("en-IN")}.00`, type: "normal" as const }] : []),
+    { label: "Delivery", value: p.deliveryCharge || "FREE", type: "free" as const },
+    ...(original ? [{ label: "Total", value: `₹${original.toLocaleString("en-IN")}.00`, type: "bold" as const }] : []),
+  ];
+  const postSavingsRows: PriceRow[] = p.postSavingsRows ?? [
+    { label: "Order Total", value: p.orderTotal || p.currentPrice, type: "total" as const },
+    ...(p.interestCharged ? [{ label: "Interest (charged by lender)", value: p.interestCharged, type: "sub" as const }] : []),
+    ...(p.totalCostToLender ? [{ label: "Total Cost (payable to lender)", value: p.totalCostToLender, type: "sub" as const }] : []),
+  ];
+
+  function renderPriceRow(r: PriceRow): string {
+    if (r.type === "total") return `<div class="divider"></div><div class="total-row"><span class="tl">${r.label}:</span><span class="tv">${r.value}</span></div>`;
+    if (r.type === "sub") return `<div class="sub-row"><span class="sl">${r.label}:</span><span class="sv">${r.value}</span></div>`;
+    const labelStyle = r.type === "bold" ? `style="font-weight:700;color:#0f172a"` : "";
+    const valueClass = r.type === "free" ? `rv free` : `rv`;
+    return `<div class="row"><span class="rl" ${labelStyle}>${r.label}</span><span class="${valueClass}">${r.value}</span></div>`;
+  }
+
   const h = 500
     + (savingsCount > 2 ? (savingsCount - 2) * 22 : 0)
     + (emiOptions.length > 0 ? 55 : 0)
-    + ((p.bankEmiOffers?.length || 0) > 0 ? 85 : 0);
+    + ((p.bankEmiOffers?.length || 0) > 0 ? 85 : 0)
+    + (priceBreakdownRows.length > 3 ? (priceBreakdownRows.length - 3) * 28 : 0)
+    + (postSavingsRows.filter(r => r.type === "sub").length * 18);
 
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
   *{margin:0;padding:0;box-sizing:border-box;}
@@ -162,9 +185,7 @@ function detailedTemplate(p: ProductData): string {
     <div class="body">
       <div class="title">${p.title}</div>
       <div>
-        ${original ? `<div class="row"><span class="rl">Items (MRP)</span><span class="rv">₹${original.toLocaleString("en-IN")}.00</span></div>` : ""}
-        <div class="row"><span class="rl">Delivery</span><span class="rv free">${p.deliveryCharge || "FREE"}</span></div>
-        ${original ? `<div class="row"><span class="rl" style="font-weight:700;color:#0f172a">Total</span><span class="rv">₹${original.toLocaleString("en-IN")}.00</span></div>` : ""}
+        ${priceBreakdownRows.map(renderPriceRow).join("")}
       </div>
       ${(savingsItems.length > 0 || p.youSave) ? `
       <div class="sav-box">
@@ -177,10 +198,7 @@ function detailedTemplate(p: ProductData): string {
           ${savingsItems.map(s=>`<div class="sav-item"><span class="sav-item-l">${s.label}</span><span class="sav-item-a">${s.amount}</span></div>`).join("")}
         </div>
       </div>` : ""}
-      <div class="divider"></div>
-      <div class="total-row"><span class="tl">Order Total:</span><span class="tv">${p.orderTotal || p.currentPrice}</span></div>
-      ${p.interestCharged ? `<div class="sub-row"><span class="sl">Interest (charged by lender):</span><span class="sv">${p.interestCharged}</span></div>` : ""}
-      ${p.totalCostToLender ? `<div class="sub-row"><span class="sl">Total Cost (payable to lender):</span><span class="sv">${p.totalCostToLender}</span></div>` : ""}
+      ${postSavingsRows.map(renderPriceRow).join("")}
       ${!hasEmi ? `<div class="amz-row"><div class="amz">amazon.in</div></div>` : ""}
     </div>
     ${emiOptions.length > 0 ? `<div class="emi-banner"><span style="font-size:18px">💳</span><span class="emi-lbl">No Cost EMI:</span><div class="emi-chips">${emiOptions.map(o => `<span class="emi-chip">${o.amount} × ${o.months}m</span>`).join("")}</div></div>` : ""}
