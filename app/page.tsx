@@ -160,8 +160,6 @@ export default function Home() {
   const [testLoading, setTestLoading] = useState(false);
   const [testResult, setTestResult] = useState<{diagnosis: string; tips?: string[]; chatInfo?: {type:string;title:string;id:number}; botInfo?: {username:string}} | null>(null);
 
-  // Edit panel state
-  const [showEditPanel, setShowEditPanel] = useState(false);
 
   // Amazon cookie state
   const [amazonCookies, setAmazonCookies] = useState("");
@@ -190,6 +188,26 @@ export default function Home() {
 
   // Preview modal state
   const [previewImage, setPreviewImage] = useState<{ src: string; label: string; style: TemplateStyle } | null>(null);
+  const [regenerating, setRegenerating] = useState(false);
+  const [showModalEdit, setShowModalEdit] = useState(false);
+
+  async function handleModalRegenerate() {
+    if (!product || !previewImage) return;
+    setRegenerating(true);
+    try {
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ product, style: previewImage.style }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setPreviewImage({ ...previewImage, src: data.image });
+      setGeneratedImages(prev => ({ ...prev, [previewImage.style]: data.image }));
+    } finally {
+      setRegenerating(false);
+    }
+  }
 
   async function handleScrape() {
     if (!url.trim()) return;
@@ -199,7 +217,7 @@ export default function Home() {
     setGeneratedImages({});
     setCaption("");
     setSavedPostIds({});
-    setShowEditPanel(false);
+    setShowModalEdit(false);
     try {
       const res = await fetch("/api/scrape", {
         method: "POST",
@@ -371,58 +389,188 @@ export default function Home() {
       {/* ── Preview Modal ─────────────────────────────────────────── */}
       {previewImage && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4"
           onClick={() => setPreviewImage(null)}
         >
           <div
-            className="relative bg-white rounded-2xl overflow-hidden shadow-2xl max-w-5xl w-full mx-6"
+            className="relative bg-white rounded-2xl overflow-hidden shadow-2xl w-full mx-auto flex flex-col"
+            style={{ maxWidth: showModalEdit ? "1200px" : "780px", maxHeight: "92vh" }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Modal header */}
-            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 flex-shrink-0">
               <span className="font-semibold text-gray-800">
                 {STYLES.find(s => s.id === previewImage.style)?.emoji} {previewImage.label} Template
               </span>
               <div className="flex items-center gap-2">
                 <button
+                  onClick={() => setShowModalEdit(v => !v)}
+                  className={`text-xs font-semibold px-4 py-2 rounded-lg transition-colors ${showModalEdit ? "bg-blue-600 text-white" : "bg-blue-50 hover:bg-blue-100 text-blue-700"}`}
+                >✏️ Edit</button>
+                <button
                   onClick={() => { downloadImage(previewImage.src, previewImage.style); }}
                   className="bg-gray-800 hover:bg-gray-900 text-white text-xs font-semibold px-4 py-2 rounded-lg transition-colors"
-                >
-                  ⬇ Download
-                </button>
+                >⬇ Download</button>
                 <button
                   onClick={() => handleSave(previewImage.style, previewImage.src)}
                   disabled={savingStyles.has(previewImage.style) || !!savedPostIds[previewImage.style]}
-                  className={`text-xs font-semibold px-4 py-2 rounded-lg transition-colors disabled:opacity-60 ${
-                    savedPostIds[previewImage.style]
-                      ? "bg-green-100 text-green-700"
-                      : "bg-gray-100 hover:bg-gray-200 text-gray-700"
-                  }`}
+                  className={`text-xs font-semibold px-4 py-2 rounded-lg transition-colors disabled:opacity-60 ${savedPostIds[previewImage.style] ? "bg-green-100 text-green-700" : "bg-gray-100 hover:bg-gray-200 text-gray-700"}`}
                 >
                   {savingStyles.has(previewImage.style) ? "Saving..." : savedPostIds[previewImage.style] ? "✅ Saved" : "💾 Save"}
                 </button>
                 <button
-                  onClick={() => {
-                    setSelectedStyle(previewImage.style);
-                    setShowTelegramForm(true);
-                    setPreviewImage(null);
-                  }}
+                  onClick={() => { setSelectedStyle(previewImage.style); setShowTelegramForm(true); setPreviewImage(null); }}
                   className="bg-blue-500 hover:bg-blue-600 text-white text-xs font-semibold px-4 py-2 rounded-lg transition-colors"
-                >
-                  ✈️ Post to Telegram
-                </button>
-                <button
-                  onClick={() => setPreviewImage(null)}
-                  className="text-gray-400 hover:text-gray-600 text-xl w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100"
-                >
-                  ✕
-                </button>
+                >✈️ Post to Telegram</button>
+                <button onClick={() => setPreviewImage(null)}
+                  className="text-gray-400 hover:text-gray-600 text-xl w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100">✕</button>
               </div>
             </div>
-            {/* Image */}
-            <img src={previewImage.src} alt={previewImage.label} className="w-full" />
-            {/* Modal footer hint */}
-            <div className="px-5 py-2 bg-gray-50 text-xs text-gray-400 text-center">
+
+            {/* Body: image + optional edit panel side by side */}
+            <div className="flex flex-1 overflow-hidden min-h-0">
+              {/* Image pane */}
+              <div className={`overflow-y-auto flex items-start justify-center bg-gray-50 p-4 ${showModalEdit ? "w-[55%] border-r border-gray-200" : "w-full"}`}>
+                <img src={previewImage.src} alt={previewImage.label} className="w-full rounded-lg" />
+              </div>
+
+              {/* Edit pane */}
+              {showModalEdit && product && (
+                <div className="w-[45%] overflow-y-auto flex flex-col">
+                  <div className="p-4 space-y-4 flex-1">
+                    <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Edit Deal Details</p>
+
+                    {/* Title */}
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Product Title</label>
+                      <div className="flex gap-1.5 items-center">
+                        <input type="text" value={product.title}
+                          onChange={(e) => setProduct({ ...product, title: e.target.value })}
+                          className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                        <button onClick={() => setProduct({ ...product, title: "" })}
+                          className="text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg p-2 transition-colors flex-shrink-0">✕</button>
+                      </div>
+                    </div>
+
+                    {/* Price / MRP / Discount */}
+                    <div className="grid grid-cols-3 gap-2">
+                      {([
+                        { label: "Deal Price", key: "currentPrice", placeholder: "₹35,990" },
+                        { label: "MRP", key: "originalPrice", placeholder: "₹54,000" },
+                        { label: "Discount %", key: "discount", placeholder: "-33%" },
+                      ] as { label: string; key: keyof ProductData; placeholder: string }[]).map(f => (
+                        <div key={f.key}>
+                          <label className="block text-xs font-medium text-gray-500 mb-1">{f.label}</label>
+                          <div className="flex gap-1 items-center">
+                            <input type="text" value={(product[f.key] as string) || ""}
+                              onChange={(e) => setProduct({ ...product, [f.key]: e.target.value })}
+                              placeholder={f.placeholder}
+                              className="flex-1 min-w-0 border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                            <button onClick={() => setProduct({ ...product, [f.key]: "" })}
+                              className="text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg p-1.5 flex-shrink-0">✕</button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Price Breakdown Rows */}
+                    <RowEditor
+                      title="Price Breakdown Rows"
+                      titleColor="text-blue-700"
+                      borderColor="border-blue-200"
+                      addBg="bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-700"
+                      rows={product.priceBreakdownRows || []}
+                      valuePlaceholder="₹36,990"
+                      onChange={(rows) => setProduct({ ...product, priceBreakdownRows: rows })}
+                    />
+
+                    {/* Savings Items */}
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="text-xs font-semibold text-green-700 uppercase tracking-wide">🏷️ Savings Items</label>
+                        <button
+                          onClick={() => setProduct({ ...product, savingsItems: [...(product.savingsItems || []), { label: "", amount: "" }] })}
+                          className="text-xs font-semibold text-green-700 bg-green-50 hover:bg-green-100 border border-green-200 px-3 py-1 rounded-lg transition-colors"
+                        >+ Add</button>
+                      </div>
+                      <div className="space-y-2">
+                        {(product.savingsItems || []).length === 0 && (
+                          <p className="text-xs text-gray-400 text-center py-2 border border-dashed border-gray-200 rounded-lg">No savings rows</p>
+                        )}
+                        {(product.savingsItems || []).map((item, i) => {
+                          const items = product.savingsItems || [];
+                          return (
+                            <div key={i} className="flex gap-1.5 items-center">
+                              <div className="flex flex-col gap-0.5">
+                                <button onClick={() => { if (i===0) return; const u=[...items]; [u[i-1],u[i]]=[u[i],u[i-1]]; setProduct({...product,savingsItems:u}); }}
+                                  disabled={i===0} className="text-gray-400 hover:text-gray-600 disabled:opacity-20 text-[10px] leading-none px-1">▲</button>
+                                <button onClick={() => { if (i===items.length-1) return; const u=[...items]; [u[i],u[i+1]]=[u[i+1],u[i]]; setProduct({...product,savingsItems:u}); }}
+                                  disabled={i===items.length-1} className="text-gray-400 hover:text-gray-600 disabled:opacity-20 text-[10px] leading-none px-1">▼</button>
+                              </div>
+                              <input type="text" value={item.label}
+                                onChange={(e) => { const u=[...items]; u[i]={...u[i],label:e.target.value}; setProduct({...product,savingsItems:u}); }}
+                                placeholder="Instant Bank Discount"
+                                className="flex-1 border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+                              <input type="text" value={item.amount}
+                                onChange={(e) => { const u=[...items]; u[i]={...u[i],amount:e.target.value}; setProduct({...product,savingsItems:u}); }}
+                                placeholder="-₹3,000"
+                                className="w-24 border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+                              <button onClick={() => setProduct({...product,savingsItems:items.filter((_,idx)=>idx!==i)})}
+                                className="text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg p-1.5">✕</button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* After-Savings Rows */}
+                    <RowEditor
+                      title="After-Savings Rows"
+                      titleColor="text-orange-700"
+                      borderColor="border-orange-200"
+                      addBg="bg-orange-50 hover:bg-orange-100 border-orange-200 text-orange-700"
+                      rows={product.postSavingsRows || []}
+                      valuePlaceholder="₹31,990"
+                      onChange={(rows) => setProduct({ ...product, postSavingsRows: rows })}
+                    />
+
+                    {/* EMI */}
+                    <div className="grid grid-cols-2 gap-2">
+                      {([
+                        { label: "💳 EMI Amount", key: "emiAmount", placeholder: "₹3,999" },
+                        { label: "EMI Months", key: "emiMonths", placeholder: "9" },
+                      ] as { label: string; key: keyof ProductData; placeholder: string }[]).map(f => (
+                        <div key={f.key}>
+                          <label className="block text-xs font-medium text-gray-500 mb-1">{f.label}</label>
+                          <div className="flex gap-1 items-center">
+                            <input type="text" value={(product[f.key] as string) || ""}
+                              onChange={(e) => setProduct({ ...product, [f.key]: e.target.value })}
+                              placeholder={f.placeholder}
+                              className="flex-1 min-w-0 border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                            <button onClick={() => setProduct({ ...product, [f.key]: "" })}
+                              className="text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg p-1.5 flex-shrink-0">✕</button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Regenerate button pinned at bottom of edit pane */}
+                  <div className="p-4 border-t border-gray-100 flex-shrink-0">
+                    <button
+                      onClick={handleModalRegenerate}
+                      disabled={regenerating}
+                      className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold py-2.5 rounded-xl transition-colors text-sm"
+                    >
+                      {regenerating ? "Regenerating..." : "🔄 Regenerate Image"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer hint */}
+            <div className="px-5 py-2 bg-gray-50 text-xs text-gray-400 text-center border-t border-gray-100 flex-shrink-0">
               Click outside or ✕ to close · Use buttons above to download or post
             </div>
           </div>
@@ -560,134 +708,7 @@ export default function Home() {
                     }
                   </div>
                 </div>
-                <button
-                  onClick={() => setShowEditPanel(!showEditPanel)}
-                  className="text-xs font-semibold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors flex-shrink-0"
-                >
-                  {showEditPanel ? "✕ Close" : "✏️ Edit"}
-                </button>
               </div>
-
-              {/* Edit panel */}
-              {showEditPanel && (
-                <div className="mt-2 bg-white border border-blue-200 rounded-xl p-4 space-y-5">
-                  <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Edit Deal Details</p>
-
-                  {/* ── Core fields ── */}
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Product Title</label>
-                    <div className="flex gap-1.5 items-center">
-                      <input type="text" value={product.title}
-                        onChange={(e) => setProduct({ ...product, title: e.target.value })}
-                        className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
-                      <button onClick={() => setProduct({ ...product, title: "" })}
-                        className="text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg p-2 transition-colors flex-shrink-0" title="Clear">✕</button>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-3 gap-3">
-                    {([
-                      { label: "Deal Price", key: "currentPrice", placeholder: "₹35,990" },
-                      { label: "MRP", key: "originalPrice", placeholder: "₹54,000" },
-                      { label: "Discount %", key: "discount", placeholder: "-33%" },
-                    ] as { label: string; key: keyof ProductData; placeholder: string }[]).map(f => (
-                      <div key={f.key}>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">{f.label}</label>
-                        <div className="flex gap-1 items-center">
-                          <input type="text" value={(product[f.key] as string) || ""}
-                            onChange={(e) => setProduct({ ...product, [f.key]: e.target.value })}
-                            placeholder={f.placeholder}
-                            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
-                          <button onClick={() => setProduct({ ...product, [f.key]: "" })}
-                            className="text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg p-2 transition-colors flex-shrink-0" title="Clear">✕</button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* ── Price Breakdown Rows ── */}
-                  <RowEditor
-                    title="Price Breakdown Rows"
-                    titleColor="text-blue-700"
-                    borderColor="border-blue-200"
-                    addBg="bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-700"
-                    rows={product.priceBreakdownRows || []}
-                    valuePlaceholder="₹36,990"
-                    onChange={(rows) => setProduct({ ...product, priceBreakdownRows: rows })}
-                  />
-
-                  {/* ── Savings Items ── */}
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="text-xs font-semibold text-green-700 uppercase tracking-wide">🏷️ Savings Items</label>
-                      <button
-                        onClick={() => setProduct({ ...product, savingsItems: [...(product.savingsItems || []), { label: "", amount: "" }] })}
-                        className="text-xs font-semibold text-green-700 bg-green-50 hover:bg-green-100 border border-green-200 px-3 py-1 rounded-lg transition-colors"
-                      >+ Add Row</button>
-                    </div>
-                    <div className="space-y-2">
-                      {(product.savingsItems || []).length === 0 && (
-                        <p className="text-xs text-gray-400 text-center py-2 border border-dashed border-gray-200 rounded-lg">
-                          No savings rows — click &quot;+ Add Row&quot; to add one
-                        </p>
-                      )}
-                      {(product.savingsItems || []).map((item, i) => {
-                        const items = product.savingsItems || [];
-                        return (
-                          <div key={i} className="flex gap-2 items-center">
-                            <button onClick={() => { if (i === 0) return; const u = [...items]; [u[i-1],u[i]]=[u[i],u[i-1]]; setProduct({...product, savingsItems: u}); }}
-                              disabled={i === 0} className="text-gray-400 hover:text-gray-600 disabled:opacity-20 text-xs px-1">▲</button>
-                            <button onClick={() => { if (i === items.length-1) return; const u=[...items]; [u[i],u[i+1]]=[u[i+1],u[i]]; setProduct({...product, savingsItems: u}); }}
-                              disabled={i === items.length-1} className="text-gray-400 hover:text-gray-600 disabled:opacity-20 text-xs px-1">▼</button>
-                            <input type="text" value={item.label}
-                              onChange={(e) => { const u=[...items]; u[i]={...u[i],label:e.target.value}; setProduct({...product, savingsItems:u}); }}
-                              placeholder="e.g. Instant Bank Discount"
-                              className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
-                            <input type="text" value={item.amount}
-                              onChange={(e) => { const u=[...items]; u[i]={...u[i],amount:e.target.value}; setProduct({...product, savingsItems:u}); }}
-                              placeholder="-₹3,000"
-                              className="w-28 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
-                            <button onClick={() => setProduct({...product, savingsItems: items.filter((_,idx)=>idx!==i)})}
-                              className="text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg p-1.5 transition-colors">✕</button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* ── Post-Savings Rows ── */}
-                  <RowEditor
-                    title="After-Savings Rows"
-                    titleColor="text-orange-700"
-                    borderColor="border-orange-200"
-                    addBg="bg-orange-50 hover:bg-orange-100 border-orange-200 text-orange-700"
-                    rows={product.postSavingsRows || []}
-                    valuePlaceholder="₹31,990"
-                    onChange={(rows) => setProduct({ ...product, postSavingsRows: rows })}
-                  />
-
-                  {/* ── EMI ── */}
-                  <div className="grid grid-cols-2 gap-3">
-                    {([
-                      { label: "💳 No Cost EMI Amount", key: "emiAmount", placeholder: "₹3,999" },
-                      { label: "EMI Months", key: "emiMonths", placeholder: "9" },
-                    ] as { label: string; key: keyof ProductData; placeholder: string }[]).map(f => (
-                      <div key={f.key}>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">{f.label}</label>
-                        <div className="flex gap-1 items-center">
-                          <input type="text" value={(product[f.key] as string) || ""}
-                            onChange={(e) => setProduct({ ...product, [f.key]: e.target.value })}
-                            placeholder={f.placeholder}
-                            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
-                          <button onClick={() => setProduct({ ...product, [f.key]: "" })}
-                            className="text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg p-2 transition-colors flex-shrink-0" title="Clear">✕</button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <p className="text-xs text-gray-400">Changes apply immediately — click Generate to see the updated image</p>
-                </div>
-              )}
             </>
           )}
         </div>
