@@ -576,9 +576,13 @@ export default function Home() {
                   {/* ── Core fields ── */}
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1">Product Title</label>
-                    <input type="text" value={product.title}
-                      onChange={(e) => setProduct({ ...product, title: e.target.value })}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                    <div className="flex gap-1.5 items-center">
+                      <input type="text" value={product.title}
+                        onChange={(e) => setProduct({ ...product, title: e.target.value })}
+                        className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                      <button onClick={() => setProduct({ ...product, title: "" })}
+                        className="text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg p-2 transition-colors flex-shrink-0" title="Clear">✕</button>
+                    </div>
                   </div>
                   <div className="grid grid-cols-3 gap-3">
                     {([
@@ -588,10 +592,14 @@ export default function Home() {
                     ] as { label: string; key: keyof ProductData; placeholder: string }[]).map(f => (
                       <div key={f.key}>
                         <label className="block text-xs font-medium text-gray-500 mb-1">{f.label}</label>
-                        <input type="text" value={(product[f.key] as string) || ""}
-                          onChange={(e) => setProduct({ ...product, [f.key]: e.target.value })}
-                          placeholder={f.placeholder}
-                          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                        <div className="flex gap-1 items-center">
+                          <input type="text" value={(product[f.key] as string) || ""}
+                            onChange={(e) => setProduct({ ...product, [f.key]: e.target.value })}
+                            placeholder={f.placeholder}
+                            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                          <button onClick={() => setProduct({ ...product, [f.key]: "" })}
+                            className="text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg p-2 transition-colors flex-shrink-0" title="Clear">✕</button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -659,20 +667,22 @@ export default function Home() {
 
                   {/* ── EMI ── */}
                   <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">💳 No Cost EMI Amount</label>
-                      <input type="text" value={product.emiAmount || ""}
-                        onChange={(e) => setProduct({ ...product, emiAmount: e.target.value })}
-                        placeholder="₹3,999"
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">EMI Months</label>
-                      <input type="text" value={product.emiMonths || ""}
-                        onChange={(e) => setProduct({ ...product, emiMonths: e.target.value })}
-                        placeholder="9"
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
-                    </div>
+                    {([
+                      { label: "💳 No Cost EMI Amount", key: "emiAmount", placeholder: "₹3,999" },
+                      { label: "EMI Months", key: "emiMonths", placeholder: "9" },
+                    ] as { label: string; key: keyof ProductData; placeholder: string }[]).map(f => (
+                      <div key={f.key}>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">{f.label}</label>
+                        <div className="flex gap-1 items-center">
+                          <input type="text" value={(product[f.key] as string) || ""}
+                            onChange={(e) => setProduct({ ...product, [f.key]: e.target.value })}
+                            placeholder={f.placeholder}
+                            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                          <button onClick={() => setProduct({ ...product, [f.key]: "" })}
+                            className="text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg p-2 transition-colors flex-shrink-0" title="Clear">✕</button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
 
                   <p className="text-xs text-gray-400">Changes apply immediately — click Generate to see the updated image</p>
