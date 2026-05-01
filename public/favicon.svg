@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Background circle -->
+  <rect width="32" height="32" rx="8" fill="#2563EB"/>
+  <!-- Price tag shape -->
+  <path d="M8 8h9.5a1.5 1.5 0 0 1 1.06.44l5.5 5.5a1.5 1.5 0 0 1 0 2.12l-7.5 7.5a1.5 1.5 0 0 1-2.12 0l-5.5-5.5A1.5 1.5 0 0 1 8.5 17V8.5A.5.5 0 0 1 9 8z" fill="none" stroke="white" stroke-width="1.5" stroke-linejoin="round"/>
+  <!-- Hole in tag -->
+  <circle cx="13" cy="13" r="1.5" fill="white"/>
+  <!-- Percent / price lines -->
+  <line x1="12" y1="17" x2="17" y2="12" stroke="white" stroke-width="1.2" stroke-linecap="round"/>
+</svg>
