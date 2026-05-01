@@ -3,6 +3,11 @@ import { useState, useCallback, useEffect } from "react";
 
 type TemplateStyle = "simple" | "detailed" | "minimal" | "bold" | "gradient" | "vibrant" | "premium" | "news";
 
+interface SavingsItem {
+  label: string;
+  amount: string;
+}
+
 interface ProductData {
   title: string;
   image: string;
@@ -21,6 +26,9 @@ interface ProductData {
   bankEmiOffers?: { bank: string; effectivePrice: string; saving: string }[];
   orderTotal?: string;
   totalSavings?: string;
+  savingsItems?: SavingsItem[];
+  deliveryCharge?: string;
+  noCostEmiDiscount?: string;
 }
 
 const STYLES: { id: TemplateStyle; label: string; desc: string; emoji: string; color: string }[] = [
@@ -460,8 +468,9 @@ export default function Home() {
 
               {/* Edit panel */}
               {showEditPanel && (
-                <div className="mt-2 bg-white border border-blue-200 rounded-xl p-4 space-y-3">
+                <div className="mt-2 bg-white border border-blue-200 rounded-xl p-4 space-y-4">
                   <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Edit Deal Details</p>
+
                   {/* Title */}
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1">Product Title</label>
@@ -472,85 +481,127 @@ export default function Home() {
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
                     />
                   </div>
+
                   {/* Price row */}
                   <div className="grid grid-cols-3 gap-3">
                     <div>
                       <label className="block text-xs font-medium text-gray-500 mb-1">Deal Price</label>
-                      <input
-                        type="text"
-                        value={product.currentPrice}
+                      <input type="text" value={product.currentPrice}
                         onChange={(e) => setProduct({ ...product, currentPrice: e.target.value })}
                         placeholder="₹35,990"
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                      />
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-gray-500 mb-1">MRP</label>
-                      <input
-                        type="text"
-                        value={product.originalPrice}
+                      <input type="text" value={product.originalPrice}
                         onChange={(e) => setProduct({ ...product, originalPrice: e.target.value })}
                         placeholder="₹54,000"
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                      />
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-gray-500 mb-1">Discount %</label>
-                      <input
-                        type="text"
-                        value={product.discount}
+                      <input type="text" value={product.discount}
                         onChange={(e) => setProduct({ ...product, discount: e.target.value })}
                         placeholder="-33%"
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                      />
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
                     </div>
                   </div>
-                  {/* Offers row */}
+
+                  {/* Delivery + Order Total */}
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">🎟️ Coupon Discount</label>
-                      <input
-                        type="text"
-                        value={product.couponDiscount || ""}
-                        onChange={(e) => setProduct({ ...product, couponDiscount: e.target.value })}
-                        placeholder="-₹500"
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                      />
+                      <label className="block text-xs font-medium text-gray-500 mb-1">🚚 Delivery Charge</label>
+                      <input type="text" value={product.deliveryCharge || ""}
+                        onChange={(e) => setProduct({ ...product, deliveryCharge: e.target.value })}
+                        placeholder="FREE"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">🏦 Bank Offer</label>
-                      <input
-                        type="text"
-                        value={product.bankDiscount || ""}
-                        onChange={(e) => setProduct({ ...product, bankDiscount: e.target.value })}
-                        placeholder="Upto ₹2,500"
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                      />
+                      <label className="block text-xs font-medium text-gray-500 mb-1">🧾 Order Total</label>
+                      <input type="text" value={product.orderTotal || ""}
+                        onChange={(e) => setProduct({ ...product, orderTotal: e.target.value })}
+                        placeholder="₹31,990"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
                     </div>
                   </div>
+
+                  {/* Savings Items section */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-xs font-semibold text-green-700 uppercase tracking-wide">🏷️ Savings Items</label>
+                      <button
+                        onClick={() => setProduct({
+                          ...product,
+                          savingsItems: [...(product.savingsItems || []), { label: "", amount: "" }]
+                        })}
+                        className="text-xs font-semibold text-green-700 bg-green-50 hover:bg-green-100 border border-green-200 px-3 py-1 rounded-lg transition-colors"
+                      >
+                        + Add Row
+                      </button>
+                    </div>
+                    <div className="space-y-2">
+                      {(product.savingsItems || []).length === 0 && (
+                        <p className="text-xs text-gray-400 text-center py-2 border border-dashed border-gray-200 rounded-lg">
+                          No savings rows — click &quot;+ Add Row&quot; to add one
+                        </p>
+                      )}
+                      {(product.savingsItems || []).map((item, i) => (
+                        <div key={i} className="flex gap-2 items-center">
+                          <input
+                            type="text"
+                            value={item.label}
+                            onChange={(e) => {
+                              const updated = [...(product.savingsItems || [])];
+                              updated[i] = { ...updated[i], label: e.target.value };
+                              setProduct({ ...product, savingsItems: updated });
+                            }}
+                            placeholder="e.g. Instant Bank Discount"
+                            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                          />
+                          <input
+                            type="text"
+                            value={item.amount}
+                            onChange={(e) => {
+                              const updated = [...(product.savingsItems || [])];
+                              updated[i] = { ...updated[i], amount: e.target.value };
+                              setProduct({ ...product, savingsItems: updated });
+                            }}
+                            placeholder="-₹3,000"
+                            className="w-28 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                          />
+                          <button
+                            onClick={() => {
+                              const updated = (product.savingsItems || []).filter((_, idx) => idx !== i);
+                              setProduct({ ...product, savingsItems: updated });
+                            }}
+                            className="text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg p-2 transition-colors flex-shrink-0"
+                            title="Remove row"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
                   {/* EMI row */}
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs font-medium text-gray-500 mb-1">💳 No Cost EMI Amount</label>
-                      <input
-                        type="text"
-                        value={product.emiAmount || ""}
+                      <input type="text" value={product.emiAmount || ""}
                         onChange={(e) => setProduct({ ...product, emiAmount: e.target.value })}
                         placeholder="₹3,999"
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                      />
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-gray-500 mb-1">EMI Months</label>
-                      <input
-                        type="text"
-                        value={product.emiMonths || ""}
+                      <input type="text" value={product.emiMonths || ""}
                         onChange={(e) => setProduct({ ...product, emiMonths: e.target.value })}
                         placeholder="9"
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                      />
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
                     </div>
                   </div>
+
                   <p className="text-xs text-gray-400">Changes apply immediately — click Generate to see the updated image</p>
                 </div>
               )}
