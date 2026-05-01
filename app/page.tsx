@@ -215,13 +215,40 @@ export default function Home() {
     return (permissions[key] as boolean | undefined) !== false;
   });
 
+  // Auto-logout helper: call instead of fetch() for all API requests
+  const apiFetch = useCallback(async (url: string, options?: RequestInit): Promise<Response> => {
+    const res = await fetch(url, options);
+    if (res.status === 401) {
+      const cloned = res.clone();
+      try {
+        const data = await cloned.json();
+        if (data.error === "ACCOUNT_DISABLED" || data.error === "ACCESS_EXPIRED") {
+          await createClient().auth.signOut();
+          router.push(`/login?reason=${data.error === "ACCOUNT_DISABLED" ? "disabled" : "expired"}`);
+        }
+      } catch {}
+    }
+    return res;
+  }, [router]);
+
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) { router.push("/login"); return; }
       setUserEmail(user.email ?? null);
-      supabase.from("app_users").select("permissions, role").eq("id", user.id).single()
-        .then(({ data }) => {
+      supabase.from("app_users").select("permissions, role, is_enabled, valid_until").eq("id", user.id).single()
+        .then(async ({ data }) => {
+          // Check if account was disabled or expired while tab was open
+          if (data && !data.is_enabled) {
+            await supabase.auth.signOut();
+            router.push("/login?reason=disabled");
+            return;
+          }
+          if (data?.valid_until && new Date(data.valid_until) < new Date()) {
+            await supabase.auth.signOut();
+            router.push("/login?reason=expired");
+            return;
+          }
           if (data?.permissions) setPermissions({ ...DEFAULT_PERMISSIONS, ...(data.permissions as Partial<UserPermissions>) });
           if (data?.role) setUserRole(data.role);
         });
@@ -236,7 +263,7 @@ export default function Home() {
   function loadSavedPosts() {
     if (postsLoaded) return;
     setPostsLoading(true);
-    fetch("/api/posts")
+    apiFetch("/api/posts")
       .then(r => r.json())
       .then(d => { setSavedPosts(d.posts || []); setPostsLoaded(true); })
       .finally(() => setPostsLoading(false));
@@ -267,7 +294,7 @@ export default function Home() {
     if (!product || !previewImage) return;
     setRegenerating(true);
     try {
-      const res = await fetch("/api/generate", {
+      const res = await apiFetch("/api/generate", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ product, style: previewImage.style }),
       });
@@ -285,7 +312,7 @@ export default function Home() {
     setScraping(true); setError(""); setProduct(null); setGeneratedImages({});
     setCaption(""); setSavedPostIds({}); setShowModalEdit(false);
     try {
-      const res = await fetch("/api/scrape", {
+      const res = await apiFetch("/api/scrape", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: url.trim(), cookies: amazonCookies.trim() || undefined }),
       });
@@ -319,7 +346,7 @@ export default function Home() {
   const generateOne = useCallback(async (style: TemplateStyle, prod: ProductData) => {
     setGeneratingStyles(prev => new Set(prev).add(style));
     try {
-      const res = await fetch("/api/generate", {
+      const res = await apiFetch("/api/generate", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ product: prod, style }),
       });
@@ -335,7 +362,7 @@ export default function Home() {
       setGeneratingStyles(prev => { const n = new Set(prev); n.delete(style); return n; });
     }
     return null;
-  }, []);
+  }, [apiFetch]);
 
   async function handleGenerate(style: TemplateStyle) {
     if (!product) return;
@@ -365,7 +392,7 @@ export default function Home() {
     if (!product) return;
     setSavingStyles(prev => new Set(prev).add(style));
     try {
-      const res = await fetch("/api/posts", {
+      const res = await apiFetch("/api/posts", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ imageBase64: imgSrc, product, style, caption }),
       });
@@ -383,7 +410,7 @@ export default function Home() {
   async function handleTestTelegram() {
     setTestLoading(true); setTestResult(null);
     try {
-      const res = await fetch("/api/telegram/test", {
+      const res = await apiFetch("/api/telegram/test", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ botToken: telegramConfig.botToken || undefined, chatId: telegramConfig.chatId || undefined }),
       });
@@ -400,7 +427,7 @@ export default function Home() {
     if (!img) return;
     setTelegramLoading(true); setTelegramResult("");
     try {
-      const res = await fetch("/api/telegram", {
+      const res = await apiFetch("/api/telegram", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ imageBase64: img, caption, botToken: telegramConfig.botToken || undefined, chatId: telegramConfig.chatId || undefined }),
       });
@@ -409,7 +436,7 @@ export default function Home() {
       setTelegramResult("✅ Posted to Telegram!");
       const savedId = savedPostIds[selectedStyle];
       if (savedId) {
-        await fetch("/api/posts", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: savedId }) });
+        await apiFetch("/api/posts", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: savedId }) });
       }
     } catch (e: unknown) {
       setTelegramResult("❌ " + (e instanceof Error ? e.message : "Failed"));

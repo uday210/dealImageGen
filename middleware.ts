@@ -24,9 +24,11 @@ export async function middleware(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   const { pathname } = request.nextUrl;
 
-  // Allow login page always
+  // Allow login page — but if user is already logged in and no forced reason, send home
   if (pathname === "/login") {
-    if (user) return NextResponse.redirect(new URL("/", request.url));
+    if (user && !request.nextUrl.searchParams.get("reason")) {
+      return NextResponse.redirect(new URL("/", request.url));
+    }
     return supabaseResponse;
   }
 
@@ -35,16 +37,26 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  // Check admin access for /admin routes
-  if (pathname.startsWith("/admin")) {
-    const { data: profile } = await supabase
-      .from("app_users")
-      .select("role")
-      .eq("id", user.id)
-      .single();
-    if (profile?.role !== "admin") {
-      return NextResponse.redirect(new URL("/", request.url));
-    }
+  // Single query: get role + status for both admin gate and active-session check
+  const { data: profile } = await supabase
+    .from("app_users")
+    .select("role, is_enabled, valid_until")
+    .eq("id", user.id)
+    .single();
+
+  // Account disabled — redirect to login with reason (login page will sign them out)
+  if (!profile || !profile.is_enabled) {
+    return NextResponse.redirect(new URL("/login?reason=disabled", request.url));
+  }
+
+  // Access expired
+  if (profile.valid_until && new Date(profile.valid_until) < new Date()) {
+    return NextResponse.redirect(new URL("/login?reason=expired", request.url));
+  }
+
+  // Gate /admin to admins only
+  if (pathname.startsWith("/admin") && profile.role !== "admin") {
+    return NextResponse.redirect(new URL("/", request.url));
   }
 
   return supabaseResponse;
