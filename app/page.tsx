@@ -388,20 +388,26 @@ export default function Home() {
                   </button>
                 )}
                 <button onClick={() => downloadImage(previewImage.src, previewImage.style)}
-                  className="bg-slate-900 hover:bg-slate-700 text-white text-xs font-semibold px-3.5 py-2 rounded-lg transition-colors">
-                  ↓ Download
+                  className="bg-slate-900 hover:bg-slate-700 text-white text-xs font-semibold px-3.5 py-2 rounded-lg transition-colors flex items-center gap-1.5">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
+                  Download
                 </button>
                 {permissions.save && (
                   <button onClick={() => handleSave(previewImage.style, previewImage.src)}
                     disabled={savingStyles.has(previewImage.style) || !!savedPostIds[previewImage.style]}
-                    className={`text-xs font-semibold px-3.5 py-2 rounded-lg transition-colors disabled:opacity-60 ${savedPostIds[previewImage.style] ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 hover:bg-slate-200 text-slate-700"}`}>
-                    {savingStyles.has(previewImage.style) ? "Saving…" : savedPostIds[previewImage.style] ? "✅ Saved" : "💾 Save"}
+                    className={`text-xs font-semibold px-3.5 py-2 rounded-lg transition-colors disabled:opacity-60 flex items-center gap-1.5 ${savedPostIds[previewImage.style] ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 hover:bg-slate-200 text-slate-700"}`}>
+                    {savingStyles.has(previewImage.style) ? "Saving…" : savedPostIds[previewImage.style] ? (
+                      <><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg> Saved</>
+                    ) : (
+                      <><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z"/></svg> Save</>
+                    )}
                   </button>
                 )}
                 {permissions.post_telegram && (
                   <button onClick={() => { setSelectedStyle(previewImage.style); setShowTelegramForm(true); setPreviewImage(null); }}
-                    className="bg-blue-500 hover:bg-blue-600 text-white text-xs font-semibold px-3.5 py-2 rounded-lg transition-colors">
-                    ✈️ Telegram
+                    className="bg-blue-500 hover:bg-blue-600 text-white text-xs font-semibold px-3.5 py-2 rounded-lg transition-colors flex items-center gap-1.5">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5"/></svg>
+                    Telegram
                   </button>
                 )}
                 <button onClick={() => setPreviewImage(null)}
@@ -526,10 +532,17 @@ export default function Home() {
             <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 flex-shrink-0">
               <span className="font-semibold text-slate-800 text-sm truncate max-w-lg">{STYLE_EMOJIS[savedPreview.template_style] || "🖼"} {savedPreview.product_title}</span>
               <div className="flex items-center gap-2">
-                <button onClick={() => copyCaption(savedPreview)} className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold px-3.5 py-2 rounded-lg transition-colors">
-                  {copiedId === savedPreview.id ? "✓ Copied" : "📋 Copy"}
+                <button onClick={() => copyCaption(savedPreview)} className="inline-flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold px-3.5 py-2 rounded-lg transition-colors">
+                  {copiedId === savedPreview.id ? (
+                    <><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg> Copied</>
+                  ) : (
+                    <><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184"/></svg> Copy Caption</>
+                  )}
                 </button>
-                <button onClick={() => downloadImage(savedPreview.image_path, savedPreview.template_style)} className="bg-slate-900 hover:bg-slate-700 text-white text-xs font-semibold px-3.5 py-2 rounded-lg transition-colors">↓ Download</button>
+                <button onClick={() => downloadImage(savedPreview.image_path, savedPreview.template_style)} className="inline-flex items-center gap-1.5 bg-slate-900 hover:bg-slate-700 text-white text-xs font-semibold px-3.5 py-2 rounded-lg transition-colors">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
+                  Download
+                </button>
                 <button onClick={() => setSavedPreview(null)} className="text-slate-400 hover:text-slate-600 w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-lg">✕</button>
               </div>
             </div>
@@ -620,29 +633,31 @@ export default function Home() {
       {activeTab === "new-deal" && (
         <div className="max-w-6xl mx-auto px-6 py-8 space-y-5">
 
-          {/* ── Step 1: URL ─────────────────────────────────────────── */}
+          {/* ── URL ─────────────────────────────────────────────────── */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-            {/* Section header bar */}
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-3">
-              <div className="w-7 h-7 rounded-lg bg-blue-600 text-white text-xs font-bold flex items-center justify-center shadow-sm">1</div>
-              <div>
-                <h2 className="text-sm font-bold text-slate-900">Paste Amazon URL</h2>
-                <p className="text-xs text-slate-500">Product link, search result, or short URL</p>
-              </div>
+            <div className="px-6 py-4 border-b border-slate-100">
+              <h2 className="text-sm font-bold text-slate-900">Paste Amazon URL</h2>
+              <p className="text-xs text-slate-500 mt-0.5">Product link, search result, or short URL</p>
             </div>
 
             <div className="p-6 space-y-4">
               {/* URL input row */}
               <div className="flex gap-3">
                 <div className="relative flex-1">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none">🔗</span>
+                  <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+                  </svg>
                   <input type="text" value={url} onChange={e => setUrl(e.target.value)} onKeyDown={e => e.key === "Enter" && handleScrape()}
                     placeholder="https://www.amazon.in/dp/..."
-                    className="w-full pl-10 pr-4 py-3.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-slate-50 placeholder-slate-400 text-slate-900" />
+                    className="w-full pl-10 pr-4 py-3.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white placeholder-slate-400 text-slate-900" />
                 </div>
                 <button onClick={handleScrape} disabled={scraping || !url.trim()}
                   className="bg-blue-600 hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 text-white px-6 py-3.5 rounded-xl font-semibold text-sm transition-all shadow-sm min-w-[140px] flex items-center justify-center gap-2">
-                  {scraping ? <><span className="animate-spin">⏳</span> Scraping…</> : <>↗ Fetch Product</>}
+                  {scraping ? (
+                    <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin inline-block flex-shrink-0"></span> Fetching…</>
+                  ) : (
+                    <><svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg> Fetch Product</>
+                  )}
                 </button>
               </div>
 
@@ -651,10 +666,10 @@ export default function Home() {
                 <div>
                   <button onClick={() => setShowCookiePanel(!showCookiePanel)}
                     className="flex items-center gap-2 text-xs text-slate-500 hover:text-slate-700 transition-colors">
-                    <span className="text-slate-400">{showCookiePanel ? "▾" : "▸"}</span>
-                    Amazon Login Cookies
+                    <svg className={`w-3.5 h-3.5 text-slate-400 transition-transform ${showCookiePanel ? "rotate-90" : ""}`} fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+                    <span className="font-medium">Amazon Login Cookies</span>
                     {amazonCookies
-                      ? <span className="bg-emerald-100 text-emerald-700 font-semibold px-2 py-0.5 rounded-full">✓ Active</span>
+                      ? <span className="bg-emerald-100 text-emerald-700 font-semibold px-2 py-0.5 rounded-full">Active</span>
                       : <span className="bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">Not set</span>
                     }
                   </button>
@@ -715,30 +730,33 @@ export default function Home() {
             )}
           </div>
 
-          {/* ── Step 2: Templates ────────────────────────────────────── */}
+          {/* ── Templates ───────────────────────────────────────────── */}
           {product && (
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
               <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-7 h-7 rounded-lg bg-blue-600 text-white text-xs font-bold flex items-center justify-center shadow-sm">2</div>
-                  <div>
-                    <h2 className="text-sm font-bold text-slate-900">Choose Template</h2>
-                    <p className="text-xs text-slate-500">
-                      {generatedCount > 0 ? `${generatedCount} / ${visibleStyles.length} generated` : `${visibleStyles.length} templates available`}
-                    </p>
-                  </div>
+                <div>
+                  <h2 className="text-sm font-bold text-slate-900">Choose a Template</h2>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {generatedCount > 0 ? `${generatedCount} of ${visibleStyles.length} generated` : `${visibleStyles.length} styles available`}
+                  </p>
                 </div>
                 <button onClick={handleGenerateAll} disabled={generatingAll || visibleStyles.length === 0}
                   className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:from-slate-200 disabled:to-slate-200 disabled:text-slate-400 text-white px-5 py-2.5 rounded-xl font-semibold text-sm transition-all shadow-sm flex items-center gap-2">
-                  {generatingAll ? <><span className="animate-spin">⏳</span> Generating…</> : <>⚡ Generate All {visibleStyles.length}</>}
+                  {generatingAll ? (
+                    <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin flex-shrink-0"></span> Generating…</>
+                  ) : (
+                    <><svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg> Generate All {visibleStyles.length}</>
+                  )}
                 </button>
               </div>
 
               <div className="p-6">
                 {visibleStyles.length === 0 ? (
                   <div className="text-center py-12">
-                    <p className="text-4xl mb-3">🔒</p>
-                    <p className="text-slate-600 font-semibold">No templates enabled</p>
+                    <div className="w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                      <svg className="w-7 h-7 text-slate-400" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"/></svg>
+                    </div>
+                    <p className="text-slate-700 font-semibold">No templates enabled</p>
                     <p className="text-slate-400 text-sm mt-1">Contact your admin to enable templates</p>
                   </div>
                 ) : (
@@ -752,36 +770,40 @@ export default function Home() {
                         return (
                           <button key={s.id}
                             onClick={() => { setSelectedStyle(s.id); if (!isDone && !isGenerating) handleGenerate(s.id); }}
-                            className={`group relative rounded-xl border-2 text-left transition-all overflow-hidden ${
-                              isSelected ? "border-blue-500 shadow-md shadow-blue-100" : "border-slate-200 hover:border-slate-300 hover:shadow-sm"
+                            className={`group relative rounded-xl border-2 text-left transition-all overflow-hidden focus:outline-none ${
+                              isSelected
+                                ? "border-blue-500 shadow-lg shadow-blue-100/60"
+                                : isDone
+                                  ? "border-emerald-200 hover:border-emerald-300 hover:shadow-md"
+                                  : "border-slate-200 hover:border-blue-200 hover:shadow-md"
                             }`}>
-                            {/* Gradient top bar */}
-                            <div className={`h-1.5 bg-gradient-to-r ${s.accent}`}></div>
-                            <div className="p-3.5">
-                              <span className="text-2xl block mb-2">{s.emoji}</span>
-                              <p className="font-bold text-sm text-slate-900">{s.label}</p>
-                              <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{s.desc}</p>
-                              <div className="mt-3 h-5 flex items-center">
-                                {isGenerating && (
-                                  <span className="inline-flex items-center gap-1 text-xs text-blue-600 font-medium">
-                                    <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse"></span> Generating…
-                                  </span>
-                                )}
-                                {isDone && !isGenerating && (
-                                  <span className="inline-flex items-center gap-1 text-xs text-emerald-600 font-bold">
-                                    <span className="w-4 h-4 bg-emerald-500 rounded-full flex items-center justify-center text-white text-[9px]">✓</span> Ready
-                                  </span>
-                                )}
-                                {!isDone && !isGenerating && (
-                                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${s.pill}`}>Click to generate</span>
-                                )}
+                            {/* Gradient preview area */}
+                            <div className={`h-[72px] bg-gradient-to-br ${s.accent} flex items-center justify-center relative overflow-hidden`}>
+                              <span className="text-3xl drop-shadow-sm">{s.emoji}</span>
+                              {isGenerating && (
+                                <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                </div>
+                              )}
+                              {isDone && !isGenerating && (
+                                <div className="absolute top-2 right-2 w-5 h-5 bg-white rounded-full flex items-center justify-center shadow-sm">
+                                  <span className="text-emerald-500 text-[10px] font-black">✓</span>
+                                </div>
+                              )}
+                              {isSelected && (
+                                <div className="absolute inset-0 ring-2 ring-inset ring-white/25 pointer-events-none"></div>
+                              )}
+                            </div>
+                            {/* Card body */}
+                            <div className="p-3">
+                              <p className="font-bold text-[13px] text-slate-900 leading-tight">{s.label}</p>
+                              <p className="text-[11px] text-slate-500 mt-0.5 truncate">{s.desc}</p>
+                              <div className="mt-2 h-4 flex items-center">
+                                {isGenerating && <span className="text-[11px] text-blue-600 font-semibold">Generating…</span>}
+                                {isDone && !isGenerating && <span className="text-[11px] text-emerald-600 font-bold">Ready</span>}
+                                {!isDone && !isGenerating && <span className="text-[11px] text-slate-400">Click to generate</span>}
                               </div>
                             </div>
-                            {isSelected && (
-                              <div className="absolute top-2 right-2 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
-                                <span className="text-white text-[9px] font-bold">✓</span>
-                              </div>
-                            )}
                           </button>
                         );
                       })}
@@ -844,19 +866,16 @@ export default function Home() {
             </div>
           )}
 
-          {/* ── Step 3: Caption & Post ───────────────────────────────── */}
+          {/* ── Caption & Post ──────────────────────────────────────── */}
           {generatedCount > 0 && (
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-              <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-3">
-                <div className="w-7 h-7 rounded-lg bg-blue-600 text-white text-xs font-bold flex items-center justify-center shadow-sm">3</div>
-                <div>
-                  <h2 className="text-sm font-bold text-slate-900">Caption & Post</h2>
-                  {generatedImages[selectedStyle] && (
-                    <p className="text-xs text-slate-500">
-                      Using {STYLES.find(s => s.id === selectedStyle)?.emoji} {STYLES.find(s => s.id === selectedStyle)?.label} template
-                    </p>
-                  )}
-                </div>
+              <div className="px-6 py-4 border-b border-slate-100">
+                <h2 className="text-sm font-bold text-slate-900">Caption & Post</h2>
+                {generatedImages[selectedStyle] && (
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Using {STYLES.find(s => s.id === selectedStyle)?.emoji} {STYLES.find(s => s.id === selectedStyle)?.label} template
+                  </p>
+                )}
               </div>
 
               <div className="p-6 space-y-4">
@@ -870,23 +889,30 @@ export default function Home() {
                 <div className="flex flex-wrap gap-2">
                   <button onClick={() => generatedImages[selectedStyle] && downloadImage(generatedImages[selectedStyle]!, selectedStyle)} disabled={!generatedImages[selectedStyle]}
                     className="inline-flex items-center gap-2 bg-slate-900 hover:bg-slate-700 disabled:bg-slate-200 disabled:text-slate-400 text-white px-4 py-2.5 rounded-xl font-semibold text-sm transition-all">
-                    ↓ Download
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
+                    Download
                   </button>
                   <button onClick={() => { navigator.clipboard.writeText(caption); showToast("Caption copied to clipboard"); }}
                     className="inline-flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-800 px-4 py-2.5 rounded-xl font-semibold text-sm transition-all">
-                    📋 Copy Caption
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184"/></svg>
+                    Copy Caption
                   </button>
                   {permissions.save && (
                     <button onClick={() => generatedImages[selectedStyle] && handleSave(selectedStyle, generatedImages[selectedStyle]!)}
                       disabled={!generatedImages[selectedStyle] || savingStyles.has(selectedStyle) || !!savedPostIds[selectedStyle]}
                       className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-sm transition-all disabled:opacity-60 ${savedPostIds[selectedStyle] ? "bg-emerald-100 text-emerald-700" : "bg-emerald-600 hover:bg-emerald-700 text-white"}`}>
-                      {savingStyles.has(selectedStyle) ? "Saving…" : savedPostIds[selectedStyle] ? "✅ Saved!" : "💾 Save to History"}
+                      {savingStyles.has(selectedStyle) ? "Saving…" : savedPostIds[selectedStyle] ? (
+                        <><svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg> Saved</>
+                      ) : (
+                        <><svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z"/></svg> Save to History</>
+                      )}
                     </button>
                   )}
                   {permissions.post_telegram && (
                     <button onClick={() => setShowTelegramForm(!showTelegramForm)}
                       className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-sm transition-all ${showTelegramForm ? "bg-blue-600 text-white" : "bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200"}`}>
-                      ✈️ Post to Telegram
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5"/></svg>
+                      Post to Telegram
                     </button>
                   )}
                 </div>
@@ -918,12 +944,20 @@ export default function Home() {
                     </div>
                     <div className="flex items-center gap-3 flex-wrap">
                       <button onClick={handleTestTelegram} disabled={testLoading}
-                        className="bg-amber-500 hover:bg-amber-600 disabled:bg-amber-300 text-white px-4 py-2.5 rounded-xl font-semibold text-sm transition-colors">
-                        {testLoading ? "Testing…" : "🔍 Test Connection"}
+                        className="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-600 disabled:bg-amber-300 text-white px-4 py-2.5 rounded-xl font-semibold text-sm transition-colors">
+                        {testLoading ? (
+                          <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin flex-shrink-0"></span> Testing…</>
+                        ) : (
+                          <><svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23-.693L5 14.5m14.8.8l1.402 1.402c1 1 .03 2.617-1.471 2.558L12 18.5l-7.73.26c-1.5.059-2.47-1.558-1.471-2.558L4.2 14.75"/></svg> Test Connection</>
+                        )}
                       </button>
                       <button onClick={() => handlePostTelegram()} disabled={telegramLoading || !generatedImages[selectedStyle]}
-                        className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white px-5 py-2.5 rounded-xl font-semibold text-sm transition-colors">
-                        {telegramLoading ? "Posting…" : "✈️ Send Now"}
+                        className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white px-5 py-2.5 rounded-xl font-semibold text-sm transition-colors">
+                        {telegramLoading ? (
+                          <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin flex-shrink-0"></span> Posting…</>
+                        ) : (
+                          <><svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5"/></svg> Send Now</>
+                        )}
                       </button>
                     </div>
                     {testResult && (
@@ -959,7 +993,8 @@ export default function Home() {
             </div>
             <button onClick={() => { setPostsLoaded(false); loadSavedPosts(); }}
               className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-sm font-semibold px-4 py-2 rounded-xl transition-colors shadow-sm flex items-center gap-2">
-              🔄 Refresh
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/></svg>
+              Refresh
             </button>
           </div>
 
@@ -967,9 +1002,9 @@ export default function Home() {
           {postsLoaded && savedPosts.length > 0 && (
             <div className="flex flex-col sm:flex-row gap-3 mb-6">
               <div className="relative flex-1">
-                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none">🔍</span>
+                <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
                 <input type="text" value={postsSearch} onChange={e => setPostsSearch(e.target.value)} placeholder="Search by product name…"
-                  className="w-full pl-9 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 placeholder-slate-400" />
+                  className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 placeholder-slate-400" />
               </div>
               <select value={postsFilter} onChange={e => setPostsFilter(e.target.value)}
                 className="border border-slate-200 rounded-xl px-4 py-2.5 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:w-44">
@@ -986,18 +1021,23 @@ export default function Home() {
             </div>
           ) : filteredPosts.length === 0 && postsSearch ? (
             <div className="text-center py-16">
-              <p className="text-4xl mb-3">🔍</p>
+              <div className="w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <svg className="w-7 h-7 text-slate-400" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
+              </div>
               <p className="text-slate-600 font-semibold">No results for &quot;{postsSearch}&quot;</p>
-              <button onClick={() => setPostsSearch("")} className="mt-3 text-sm text-blue-600 hover:underline">Clear search</button>
+              <button onClick={() => setPostsSearch("")} className="mt-3 text-sm text-blue-600 hover:underline font-medium">Clear search</button>
             </div>
           ) : savedPosts.length === 0 ? (
             <div className="text-center py-24">
-              <div className="w-20 h-20 bg-slate-100 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-4">📭</div>
+              <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z"/></svg>
+              </div>
               <p className="text-slate-700 font-bold text-lg">No saved posts yet</p>
-              <p className="text-slate-400 text-sm mt-1">Generate a deal image and click &quot;💾 Save&quot; to store it here</p>
+              <p className="text-slate-400 text-sm mt-1.5">Generate a deal image and save it to build your library</p>
               <button onClick={() => switchTab("new-deal")}
-                className="mt-6 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-semibold text-sm transition-colors shadow-sm">
-                ⚡ Create Your First Deal
+                className="mt-6 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-semibold text-sm transition-colors shadow-sm inline-flex items-center gap-2">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                Create Your First Deal
               </button>
             </div>
           ) : (
@@ -1031,12 +1071,17 @@ export default function Home() {
                     </p>
                     <div className="flex gap-2">
                       <button onClick={() => copyCaption(post)}
-                        className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold py-2.5 rounded-lg transition-colors">
-                        {copiedId === post.id ? "✓ Copied!" : "📋 Copy Caption"}
+                        className="flex-1 inline-flex items-center justify-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold py-2.5 rounded-lg transition-colors">
+                        {copiedId === post.id ? (
+                          <><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg> Copied</>
+                        ) : (
+                          <><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184"/></svg> Copy Caption</>
+                        )}
                       </button>
                       <button onClick={() => downloadImage(post.image_path, post.template_style)}
-                        className="flex-1 bg-slate-900 hover:bg-slate-700 text-white text-xs font-semibold py-2.5 rounded-lg transition-colors">
-                        ↓ Download
+                        className="flex-1 inline-flex items-center justify-center gap-1.5 bg-slate-900 hover:bg-slate-700 text-white text-xs font-semibold py-2.5 rounded-lg transition-colors">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
+                        Download
                       </button>
                     </div>
                   </div>
