@@ -595,14 +595,21 @@ export default function Home() {
                 ⚙️ Admin
               </a>
             )}
+            {/* User pill */}
             <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5">
               <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-blue-700 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
                 {userInitial}
               </div>
               <span className="text-xs text-slate-400 max-w-[120px] truncate hidden sm:block">{userEmail}</span>
-              <span className="text-slate-700 hidden sm:block">·</span>
-              <button onClick={handleSignOut} className="text-xs text-red-500 hover:text-red-400 font-semibold transition-colors">Out</button>
             </div>
+            {/* Sign out — separate clean button */}
+            <button onClick={handleSignOut}
+              className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-white bg-slate-900 hover:bg-red-900/40 border border-slate-800 hover:border-red-800 px-3 py-1.5 rounded-xl transition-all">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+              </svg>
+              <span className="hidden sm:inline">Sign out</span>
+            </button>
           </div>
         </div>
       </header>
