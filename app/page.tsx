@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 
 interface UserPermissions {
   edit: boolean; save: boolean; post_telegram: boolean;
-  amazon_cookie: boolean; all_templates: boolean;
+  amazon_cookie: boolean; all_templates: boolean; bulk_mode: boolean;
   tpl_simple: boolean; tpl_detailed: boolean; tpl_minimal: boolean;
   tpl_bold: boolean; tpl_gradient: boolean; tpl_vibrant: boolean;
   tpl_premium: boolean; tpl_news: boolean;
@@ -47,6 +47,10 @@ interface BulkItem {
   selectedStyle: TemplateStyle;
   image?: string;
   error?: string;
+  caption?: string;
+  editOpen?: boolean;
+  telegramPosted?: boolean;
+  telegramLoading?: boolean;
 }
 
 interface PriceHistoryData {
@@ -81,7 +85,7 @@ const STYLE_EMOJIS: Record<string, string> = {
 };
 
 const DEFAULT_PERMISSIONS: UserPermissions = {
-  edit: true, save: true, post_telegram: true, amazon_cookie: true, all_templates: true,
+  edit: true, save: true, post_telegram: true, amazon_cookie: true, all_templates: true, bulk_mode: true,
   tpl_simple: true, tpl_detailed: true, tpl_minimal: true, tpl_bold: true,
   tpl_gradient: true, tpl_vibrant: true, tpl_premium: true, tpl_news: true,
 };
@@ -199,100 +203,190 @@ function RowEditor({ title, titleColor, borderColor, addBg, rows, valuePlacehold
   );
 }
 
-function BulkItemRow({ item, onGenerate, onStyleChange, onDownload, visibleStyles }: {
+function buildBulkCaption(p: ProductData, link: string): string {
+  return [
+    `🛍️ ${p.title}`, ``,
+    p.currentPrice ? `💰 Deal Price: ${p.currentPrice}` : "",
+    p.originalPrice ? `MRP: ${p.originalPrice}` : "",
+    p.discount ? `🏷️ Discount: ${p.discount.replace("-", "")}` : "",
+    p.couponDiscount ? `🎟️ Extra Coupon: ${p.couponDiscount.replace("-", "")} off` : "",
+    p.bankDiscount ? `🏦 Bank Offer: ${p.bankDiscount}` : "",
+    `🚚 FREE Delivery`,
+    p.emiAmount && p.emiMonths ? `💳 No Cost EMI: ${p.emiAmount} × ${p.emiMonths} months` : "",
+    ``, `🔗 ${link}`, ``, `📢 @YourChannelName`,
+  ].filter(Boolean).join("\n");
+}
+
+function BulkItemRow({ item, onGenerate, onStyleChange, onDownload, onEditToggle, onProductChange, onCaptionChange, onPostTelegram, visibleStyles }: {
   item: BulkItem;
   onGenerate: () => void;
   onStyleChange: (style: TemplateStyle) => void;
   onDownload: () => void;
+  onEditToggle: () => void;
+  onProductChange: (p: ProductData) => void;
+  onCaptionChange: (c: string) => void;
+  onPostTelegram: () => void;
   visibleStyles: { id: TemplateStyle; label: string; emoji: string; accent: string; desc: string; pill: string }[];
 }) {
   const isSpinning = item.status === "scraping" || item.status === "generating";
+  const EDIT_FIELDS: { label: string; key: keyof ProductData; placeholder: string }[] = [
+    { label: "Deal Price", key: "currentPrice", placeholder: "₹35,990" },
+    { label: "MRP", key: "originalPrice", placeholder: "₹54,000" },
+    { label: "Discount", key: "discount", placeholder: "-33%" },
+    { label: "Coupon", key: "couponDiscount", placeholder: "-₹500" },
+    { label: "Bank Offer", key: "bankDiscount", placeholder: "Upto ₹2,500" },
+  ];
   return (
-    <div className="p-5 flex gap-4 items-start">
-      <div className="flex-shrink-0 pt-0.5">
-        {isSpinning ? (
-          <div className="w-5 h-5 border-2 border-blue-300 border-t-blue-600 rounded-full animate-spin"></div>
-        ) : item.status === "error" ? (
-          <div className="w-5 h-5 bg-red-100 rounded-full flex items-center justify-center">
-            <span className="text-red-500 text-[10px] font-bold leading-none">✕</span>
-          </div>
-        ) : item.status === "generated" ? (
-          <div className="w-5 h-5 bg-emerald-100 rounded-full flex items-center justify-center">
-            <span className="text-emerald-600 text-[10px] font-bold leading-none">✓</span>
-          </div>
-        ) : item.status === "ready" ? (
-          <div className="w-5 h-5 bg-blue-100 rounded-full flex items-center justify-center">
-            <svg className="w-3 h-3 text-blue-600" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
-          </div>
-        ) : (
-          <div className="w-5 h-5 bg-slate-200 rounded-full"></div>
-        )}
-      </div>
+    <div className="p-5">
+      <div className="flex gap-4 items-start">
+        {/* Status dot */}
+        <div className="flex-shrink-0 pt-0.5">
+          {isSpinning ? (
+            <div className="w-5 h-5 border-2 border-blue-300 border-t-blue-600 rounded-full animate-spin"></div>
+          ) : item.status === "error" ? (
+            <div className="w-5 h-5 bg-red-100 rounded-full flex items-center justify-center">
+              <span className="text-red-500 text-[10px] font-bold leading-none">✕</span>
+            </div>
+          ) : item.status === "generated" ? (
+            <div className="w-5 h-5 bg-emerald-100 rounded-full flex items-center justify-center">
+              <span className="text-emerald-600 text-[10px] font-bold leading-none">✓</span>
+            </div>
+          ) : item.status === "ready" ? (
+            <div className="w-5 h-5 bg-blue-100 rounded-full flex items-center justify-center">
+              <svg className="w-3 h-3 text-blue-600" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+            </div>
+          ) : (
+            <div className="w-5 h-5 bg-slate-200 rounded-full"></div>
+          )}
+        </div>
 
-      <div className="flex-1 min-w-0">
-        {item.product ? (
-          <div className="flex gap-3 mb-3">
-            {item.product.image && (
-              <img src={item.product.image} alt="" className="w-12 h-12 rounded-lg object-contain bg-white border border-slate-100 flex-shrink-0" />
-            )}
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-slate-900 line-clamp-1 leading-snug">{item.product.title}</p>
-              <div className="flex items-center gap-2 mt-1 flex-wrap">
-                {item.product.currentPrice && <span className="text-xs font-bold text-red-600">{item.product.currentPrice}</span>}
-                {item.product.originalPrice && <span className="text-xs text-slate-400 line-through">{item.product.originalPrice}</span>}
-                {item.product.discount && <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full">{item.product.discount.replace("-", "")} OFF</span>}
+        <div className="flex-1 min-w-0">
+          {/* Product info */}
+          {item.product ? (
+            <div className="flex gap-3 mb-3">
+              {item.product.image && (
+                <img src={item.product.image} alt="" className="w-12 h-12 rounded-lg object-contain bg-white border border-slate-100 flex-shrink-0" />
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-slate-900 line-clamp-1 leading-snug">{item.product.title}</p>
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                  {item.product.currentPrice && <span className="text-xs font-bold text-red-600">{item.product.currentPrice}</span>}
+                  {item.product.originalPrice && <span className="text-xs text-slate-400 line-through">{item.product.originalPrice}</span>}
+                  {item.product.discount && <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full">{item.product.discount.replace("-", "")} OFF</span>}
+                </div>
               </div>
             </div>
-          </div>
-        ) : item.status === "scraping" ? (
-          <p className="text-sm text-slate-500 mb-3 truncate">Fetching product…</p>
-        ) : item.status === "error" ? (
-          <div className="mb-3">
-            <p className="text-xs text-red-500 font-medium">Failed to scrape</p>
-            <p className="text-xs text-slate-400 truncate mt-0.5">{item.url}</p>
-            {item.error && <p className="text-xs text-red-400 mt-0.5">{item.error}</p>}
-          </div>
-        ) : (
-          <p className="text-xs text-slate-400 mb-3 truncate">{item.url}</p>
-        )}
+          ) : item.status === "scraping" ? (
+            <p className="text-sm text-slate-500 mb-3 truncate">Fetching product…</p>
+          ) : item.status === "error" ? (
+            <div className="mb-3">
+              <p className="text-xs text-red-500 font-medium">Failed to scrape</p>
+              <p className="text-xs text-slate-400 truncate mt-0.5">{item.url}</p>
+              {item.error && <p className="text-xs text-red-400 mt-0.5">{item.error}</p>}
+            </div>
+          ) : (
+            <p className="text-xs text-slate-400 mb-3 truncate">{item.url}</p>
+          )}
 
-        {item.image && (
-          <div className="mb-3 rounded-xl overflow-hidden border border-slate-200 w-48">
-            <img src={item.image} alt="" className="w-full block" />
-          </div>
-        )}
+          {/* Generated image */}
+          {item.image && (
+            <div className="mb-3 rounded-xl overflow-hidden border border-slate-200 w-48">
+              <img src={item.image} alt="" className="w-full block" />
+            </div>
+          )}
 
-        {(item.status === "ready" || (item.status === "error" && item.product)) && (
-          <div className="flex items-center gap-2">
-            <select value={item.selectedStyle} onChange={e => onStyleChange(e.target.value as TemplateStyle)}
-              className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400">
-              {visibleStyles.map(s => <option key={s.id} value={s.id}>{s.emoji} {s.label}</option>)}
-            </select>
-            <button onClick={onGenerate}
-              className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-              Generate
-            </button>
-          </div>
-        )}
-        {item.status === "generated" && (
-          <div className="flex items-center gap-2">
-            <select value={item.selectedStyle} onChange={e => onStyleChange(e.target.value as TemplateStyle)}
-              className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400">
-              {visibleStyles.map(s => <option key={s.id} value={s.id}>{s.emoji} {s.label}</option>)}
-            </select>
-            <button onClick={onGenerate}
-              className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
-              Regenerate
-            </button>
-            <button onClick={onDownload}
-              className="bg-slate-900 hover:bg-slate-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
-              Download
-            </button>
-          </div>
-        )}
+          {/* Ready actions */}
+          {(item.status === "ready" || (item.status === "error" && item.product)) && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <select value={item.selectedStyle} onChange={e => onStyleChange(e.target.value as TemplateStyle)}
+                className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400">
+                {visibleStyles.map(s => <option key={s.id} value={s.id}>{s.emoji} {s.label}</option>)}
+              </select>
+              <button onClick={onGenerate}
+                className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                Generate
+              </button>
+            </div>
+          )}
+
+          {/* Generated actions */}
+          {item.status === "generated" && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <select value={item.selectedStyle} onChange={e => onStyleChange(e.target.value as TemplateStyle)}
+                className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400">
+                {visibleStyles.map(s => <option key={s.id} value={s.id}>{s.emoji} {s.label}</option>)}
+              </select>
+              <button onClick={onEditToggle}
+                className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 ${item.editOpen ? "bg-blue-600 text-white" : "bg-slate-100 hover:bg-slate-200 text-slate-700"}`}>
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10"/></svg>
+                Edit
+              </button>
+              <button onClick={onGenerate}
+                className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
+                Regenerate
+              </button>
+              <button onClick={onDownload}
+                className="bg-slate-900 hover:bg-slate-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
+                Download
+              </button>
+              <button onClick={onPostTelegram} disabled={item.telegramLoading || item.telegramPosted}
+                className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 disabled:opacity-60 ${item.telegramPosted ? "bg-blue-100 text-blue-700" : "bg-blue-500 hover:bg-blue-600 text-white"}`}>
+                {item.telegramLoading ? (
+                  <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin flex-shrink-0"></span> Posting…</>
+                ) : item.telegramPosted ? (
+                  <><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg> Posted</>
+                ) : (
+                  <><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5"/></svg> Telegram</>
+                )}
+              </button>
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* Inline edit panel */}
+      {item.editOpen && item.product && (
+        <div className="mt-4 ml-9 bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+          <p className="text-xs font-bold text-blue-700 uppercase tracking-widest">Edit Details</p>
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 mb-1">Product Title</label>
+            <input type="text" value={item.product.title}
+              onChange={e => onProductChange({ ...item.product!, title: e.target.value })}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white" />
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {EDIT_FIELDS.slice(0, 3).map(f => (
+              <div key={String(f.key)}>
+                <label className="block text-xs font-semibold text-slate-500 mb-1">{f.label}</label>
+                <input type="text" value={(item.product![f.key] as string) || ""} placeholder={f.placeholder}
+                  onChange={e => onProductChange({ ...item.product!, [f.key]: e.target.value })}
+                  className="w-full border border-slate-200 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white" />
+              </div>
+            ))}
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {EDIT_FIELDS.slice(3).map(f => (
+              <div key={String(f.key)}>
+                <label className="block text-xs font-semibold text-slate-500 mb-1">{f.label}</label>
+                <input type="text" value={(item.product![f.key] as string) || ""} placeholder={f.placeholder}
+                  onChange={e => onProductChange({ ...item.product!, [f.key]: e.target.value })}
+                  className="w-full border border-slate-200 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white" />
+              </div>
+            ))}
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 mb-1">Caption</label>
+            <textarea value={item.caption || ""} onChange={e => onCaptionChange(e.target.value)} rows={4}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white resize-none text-slate-700" />
+          </div>
+          <button onClick={onGenerate}
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold py-2 rounded-lg transition-colors">
+            Regenerate Image
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -502,7 +596,8 @@ export default function Home() {
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
-        setBulkQueue(prev => prev.map((it, idx) => idx === i ? { ...it, status: "ready", product: enrichProduct(data) } : it));
+        const enriched = enrichProduct(data);
+        setBulkQueue(prev => prev.map((it, idx) => idx === i ? { ...it, status: "ready", product: enriched, caption: buildBulkCaption(enriched, items[i].url) } : it));
       } catch (e) {
         setBulkQueue(prev => prev.map((it, idx) => idx === i ? { ...it, status: "error", error: e instanceof Error ? e.message : "Failed" } : it));
       }
@@ -535,6 +630,31 @@ export default function Home() {
     setBulkGeneratingAll(true);
     await Promise.all(ready.map(item => handleBulkGenerate(item.id)));
     setBulkGeneratingAll(false);
+  }
+
+  async function handleBulkPostTelegram(itemId: string) {
+    const item = bulkQueue.find(i => i.id === itemId);
+    if (!item?.image) return;
+    setBulkQueue(prev => prev.map(i => i.id === itemId ? { ...i, telegramLoading: true } : i));
+    try {
+      const res = await apiFetch("/api/telegram", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          imageBase64: item.image,
+          caption: item.caption || "",
+          botToken: telegramConfig.botToken || undefined,
+          chatId: telegramConfig.chatId || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || data.message);
+      setBulkQueue(prev => prev.map(i => i.id === itemId ? { ...i, telegramPosted: true, telegramLoading: false } : i));
+      showToast("Posted to Telegram successfully!");
+    } catch (e) {
+      setBulkQueue(prev => prev.map(i => i.id === itemId ? { ...i, telegramLoading: false } : i));
+      showToast(e instanceof Error ? e.message : "Telegram failed", "error");
+    }
   }
 
   async function handleSave(style: TemplateStyle, imgSrc: string) {
@@ -825,10 +945,12 @@ export default function Home() {
                 )}
               </button>
             )}
-            <button onClick={() => setActiveTab("bulk")}
-              className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${activeTab === "bulk" ? "bg-white text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-200"}`}>
-              Bulk
-            </button>
+            {permissions.bulk_mode && (
+              <button onClick={() => setActiveTab("bulk")}
+                className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${activeTab === "bulk" ? "bg-white text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-200"}`}>
+                Bulk
+              </button>
+            )}
           </nav>
 
           {/* Right: usage + admin + user */}
@@ -1409,6 +1531,10 @@ export default function Home() {
                     onGenerate={() => handleBulkGenerate(item.id)}
                     onStyleChange={style => setBulkQueue(prev => prev.map(i => i.id === item.id ? { ...i, selectedStyle: style } : i))}
                     onDownload={() => item.image && downloadImage(item.image, item.selectedStyle)}
+                    onEditToggle={() => setBulkQueue(prev => prev.map(i => i.id === item.id ? { ...i, editOpen: !i.editOpen } : i))}
+                    onProductChange={product => setBulkQueue(prev => prev.map(i => i.id === item.id ? { ...i, product } : i))}
+                    onCaptionChange={caption => setBulkQueue(prev => prev.map(i => i.id === item.id ? { ...i, caption } : i))}
+                    onPostTelegram={() => handleBulkPostTelegram(item.id)}
                     visibleStyles={visibleStyles}
                   />
                 ))}

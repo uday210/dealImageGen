@@ -9,6 +9,7 @@ interface Permission {
   post_telegram: boolean;
   amazon_cookie: boolean;
   all_templates: boolean;
+  bulk_mode: boolean;
   tpl_simple: boolean;
   tpl_detailed: boolean;
   tpl_minimal: boolean;
@@ -35,6 +36,7 @@ const FEATURE_LABELS: { key: keyof Permission; label: string; icon: string }[] =
   { key: "save",          label: "Save Posts",      icon: "💾" },
   { key: "post_telegram", label: "Post Telegram",   icon: "✈️" },
   { key: "amazon_cookie", label: "Cookie Scraping", icon: "🍪" },
+  { key: "bulk_mode",     label: "Bulk Mode",       icon: "⚡" },
 ];
 
 const TEMPLATE_LABELS: { key: keyof Permission; label: string; icon: string }[] = [
@@ -49,7 +51,7 @@ const TEMPLATE_LABELS: { key: keyof Permission; label: string; icon: string }[] 
 ];
 
 const DEFAULT_PERMISSIONS: Permission = {
-  edit: true, save: true, post_telegram: true, amazon_cookie: true, all_templates: true,
+  edit: true, save: true, post_telegram: true, amazon_cookie: true, all_templates: true, bulk_mode: true,
   tpl_simple: true, tpl_detailed: true, tpl_minimal: true, tpl_bold: true,
   tpl_gradient: true, tpl_vibrant: true, tpl_premium: true, tpl_news: true,
 };
