@@ -76,6 +76,13 @@ function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void 
 export default function AdminPage() {
   const [users, setUsers] = useState<AppUser[]>([]);
   const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState<{
+    dailyData: { date: string; count: number }[];
+    userStats: { id: string; email: string; daily_limit: number | null; today: number; last7days: number }[];
+    templateData: { style: string; count: number }[];
+    totals: { last14Days: number; today: number };
+  } | null>(null);
+  const [statsLoading, setStatsLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState("");
@@ -91,7 +98,14 @@ export default function AdminPage() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { fetchUsers(); }, [fetchUsers]);
+  const fetchStats = useCallback(async () => {
+    setStatsLoading(true);
+    const res = await fetch("/api/admin/stats");
+    if (res.ok) setStats(await res.json());
+    setStatsLoading(false);
+  }, []);
+
+  useEffect(() => { fetchUsers(); fetchStats(); }, [fetchUsers, fetchStats]);
 
   async function handleSignOut() {
     await createClient().auth.signOut();
@@ -174,6 +188,124 @@ export default function AdminPage() {
               <p className={`text-3xl font-bold mt-1 ${s.color}`}>{s.value}</p>
             </div>
           ))}
+        </div>
+
+        {/* Usage Analytics */}
+        <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+            <h2 className="font-semibold text-gray-800">Usage Analytics</h2>
+            <button onClick={fetchStats} className="text-xs text-gray-500 hover:text-gray-700 bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/></svg>
+              Refresh
+            </button>
+          </div>
+          {statsLoading ? (
+            <div className="py-10 text-center text-gray-400 text-sm">Loading stats…</div>
+          ) : stats ? (
+            <div className="p-6 space-y-6">
+              {/* 14-day activity bar chart */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Daily Generations — Last 14 Days</p>
+                  <span className="text-xs text-gray-400">{stats.totals.last14Days} total · {stats.totals.today} today</span>
+                </div>
+                <div className="flex items-end gap-1 h-20">
+                  {(() => {
+                    const max = Math.max(...stats.dailyData.map(d => d.count), 1);
+                    return stats.dailyData.map((d, i) => {
+                      const today = new Date().toISOString().split("T")[0];
+                      const isToday = d.date === today;
+                      const heightPct = Math.max((d.count / max) * 100, d.count > 0 ? 8 : 3);
+                      return (
+                        <div key={d.date} className="flex-1 flex flex-col items-center gap-1 group relative">
+                          <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                            {d.count} on {d.date.slice(5)}
+                          </div>
+                          <div
+                            className={`w-full rounded-sm transition-all ${isToday ? "bg-blue-500" : "bg-blue-200 group-hover:bg-blue-300"}`}
+                            style={{ height: `${heightPct}%` }}
+                          ></div>
+                          {(i === 0 || i === 6 || i === 13) && (
+                            <span className="text-[9px] text-gray-400 absolute -bottom-4">{d.date.slice(5)}</span>
+                          )}
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+              </div>
+
+              {/* Per-user today usage */}
+              {stats.userStats.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">User Activity — Today &amp; Last 7 Days</p>
+                  <div className="space-y-2.5">
+                    {stats.userStats.slice(0, 8).map(u => {
+                      const limitUsedPct = u.daily_limit ? Math.min(100, Math.round((u.today / u.daily_limit) * 100)) : null;
+                      return (
+                        <div key={u.id} className="flex items-center gap-3">
+                          <div className="w-5 h-5 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                            <span className="text-blue-600 text-[10px] font-bold">{u.email[0].toUpperCase()}</span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs font-medium text-gray-700 truncate max-w-[160px]">{u.email}</span>
+                              <span className="text-xs text-gray-400 ml-2 flex-shrink-0">
+                                {u.today} today · {u.last7days} this week
+                                {u.daily_limit ? ` / ${u.daily_limit} limit` : ""}
+                              </span>
+                            </div>
+                            {u.daily_limit ? (
+                              <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full transition-all ${limitUsedPct! >= 80 ? "bg-amber-500" : "bg-blue-400"}`}
+                                  style={{ width: `${limitUsedPct}%` }}
+                                ></div>
+                              </div>
+                            ) : (
+                              <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                <div className="h-full bg-blue-200 rounded-full" style={{ width: `${Math.min(100, (u.last7days / Math.max(...stats.userStats.map(x => x.last7days), 1)) * 100)}%` }}></div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Template breakdown */}
+              {stats.templateData.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Template Usage — Last 30 Days</p>
+                  <div className="flex flex-wrap gap-2">
+                    {(() => {
+                      const maxCount = Math.max(...stats.templateData.map(t => t.count));
+                      return stats.templateData.map(t => {
+                        const widthPct = Math.round((t.count / maxCount) * 100);
+                        return (
+                          <div key={t.style} className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 min-w-[120px]">
+                            <div className="flex-1">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-xs font-semibold text-gray-700 capitalize">{t.style}</span>
+                                <span className="text-xs text-gray-500">{t.count}</span>
+                              </div>
+                              <div className="h-1 bg-gray-200 rounded-full overflow-hidden">
+                                <div className="h-full bg-blue-400 rounded-full" style={{ width: `${widthPct}%` }}></div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="py-10 text-center text-gray-400 text-sm">No stats available yet.</div>
+          )}
         </div>
 
         {/* Users table */}

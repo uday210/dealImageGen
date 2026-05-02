@@ -12,7 +12,7 @@ interface UserPermissions {
 }
 
 type TemplateStyle = "simple" | "detailed" | "minimal" | "bold" | "gradient" | "vibrant" | "premium" | "news";
-type Tab = "new-deal" | "saved-posts";
+type Tab = "new-deal" | "saved-posts" | "bulk";
 
 interface SavingsItem { label: string; amount: string; }
 type PriceRowType = "normal" | "bold" | "free" | "total" | "sub";
@@ -37,6 +37,22 @@ interface DealPost {
   coupon_discount: string; bank_discount: string; emi_amount: string;
   emi_months: string; template_style: string; caption: string;
   image_path: string; posted_to_telegram: boolean;
+}
+
+interface BulkItem {
+  id: string;
+  url: string;
+  status: "waiting" | "scraping" | "ready" | "error" | "generating" | "generated";
+  product?: ProductData;
+  selectedStyle: TemplateStyle;
+  image?: string;
+  error?: string;
+}
+
+interface PriceHistoryData {
+  asin: string | null;
+  ownHistory: { minPrice: string; minPriceNum: number; maxPrice: string; lastSeen: string; count: number } | null;
+  ccc: { allTimeLow: string | null; lowDate: string | null; atl: number | null } | null;
 }
 
 const ROW_TYPE_LABELS: Record<PriceRowType, { label: string }> = {
@@ -83,6 +99,52 @@ function enrichProduct(data: ProductData): ProductData {
     ...(data.totalCostToLender ? [{ label: "Total Cost (payable to lender)", value: data.totalCostToLender, type: "sub" as PriceRowType }] : []),
   ];
   return { ...data, priceBreakdownRows, postSavingsRows };
+}
+
+function parsePriceToNum(s: string): number | null {
+  const n = parseFloat(s.replace(/[^\d.]/g, ""));
+  return isNaN(n) ? null : n;
+}
+
+function PriceBadge({ history, currentPriceStr }: { history: PriceHistoryData; currentPriceStr: string }) {
+  const cur = parsePriceToNum(currentPriceStr);
+  if (!cur) return null;
+
+  if (history.ccc?.atl) {
+    const pct = Math.round(((cur - history.ccc.atl) / history.ccc.atl) * 100);
+    if (pct <= 2) return (
+      <span className="bg-emerald-500 text-white text-xs font-bold px-2.5 py-1 rounded-lg flex items-center gap-1 flex-shrink-0">
+        <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 18.75h-9m9 0a3 3 0 013 3h-15a3 3 0 013-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 01-.982-3.172M9.497 14.25a7.454 7.454 0 00.981-3.172M5.25 4.236c-.982.143-1.954.317-2.916.52A6.003 6.003 0 007.73 9.728M5.25 4.236V4.5c0 2.108.966 3.99 2.48 5.228M5.25 4.236V2.721C7.456 2.41 9.71 2.25 12 2.25c2.291 0 4.545.16 6.75.47v1.516M7.73 9.728a6.726 6.726 0 002.748 1.35m8.272-6.842V4.5c0 2.108-.966 3.99-2.48 5.228m2.48-5.492a46.32 46.32 0 012.916.52 6.003 6.003 0 01-5.395 4.972m0 0a6.726 6.726 0 01-2.749 1.35m0 0a6.772 6.772 0 01-3.044 0"/></svg>
+        All-time low!
+      </span>
+    );
+    if (pct <= 10) return (
+      <span className="bg-blue-100 text-blue-700 text-xs font-semibold px-2.5 py-1 rounded-lg flex-shrink-0">
+        Near ATL · ↑{pct}% (low: {history.ccc.allTimeLow})
+      </span>
+    );
+    return (
+      <span className="bg-amber-100 text-amber-700 text-xs font-semibold px-2.5 py-1 rounded-lg flex-shrink-0">
+        ATL: {history.ccc.allTimeLow} (↑{pct}% above)
+      </span>
+    );
+  }
+
+  if (history.ownHistory && history.ownHistory.count > 0) {
+    const pct = Math.round(((cur - history.ownHistory.minPriceNum) / history.ownHistory.minPriceNum) * 100);
+    if (pct <= 0) return (
+      <span className="bg-emerald-100 text-emerald-700 text-xs font-semibold px-2.5 py-1 rounded-lg flex-shrink-0">
+        Your new lowest price!
+      </span>
+    );
+    return (
+      <span className="bg-slate-100 text-slate-600 text-xs font-semibold px-2.5 py-1 rounded-lg flex-shrink-0">
+        Prev low: {history.ownHistory.minPrice} (seen {history.ownHistory.count}×)
+      </span>
+    );
+  }
+
+  return null;
 }
 
 function RowEditor({ title, titleColor, borderColor, addBg, rows, valuePlaceholder, onChange }: {
@@ -137,6 +199,104 @@ function RowEditor({ title, titleColor, borderColor, addBg, rows, valuePlacehold
   );
 }
 
+function BulkItemRow({ item, onGenerate, onStyleChange, onDownload, visibleStyles }: {
+  item: BulkItem;
+  onGenerate: () => void;
+  onStyleChange: (style: TemplateStyle) => void;
+  onDownload: () => void;
+  visibleStyles: { id: TemplateStyle; label: string; emoji: string; accent: string; desc: string; pill: string }[];
+}) {
+  const isSpinning = item.status === "scraping" || item.status === "generating";
+  return (
+    <div className="p-5 flex gap-4 items-start">
+      <div className="flex-shrink-0 pt-0.5">
+        {isSpinning ? (
+          <div className="w-5 h-5 border-2 border-blue-300 border-t-blue-600 rounded-full animate-spin"></div>
+        ) : item.status === "error" ? (
+          <div className="w-5 h-5 bg-red-100 rounded-full flex items-center justify-center">
+            <span className="text-red-500 text-[10px] font-bold leading-none">✕</span>
+          </div>
+        ) : item.status === "generated" ? (
+          <div className="w-5 h-5 bg-emerald-100 rounded-full flex items-center justify-center">
+            <span className="text-emerald-600 text-[10px] font-bold leading-none">✓</span>
+          </div>
+        ) : item.status === "ready" ? (
+          <div className="w-5 h-5 bg-blue-100 rounded-full flex items-center justify-center">
+            <svg className="w-3 h-3 text-blue-600" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+          </div>
+        ) : (
+          <div className="w-5 h-5 bg-slate-200 rounded-full"></div>
+        )}
+      </div>
+
+      <div className="flex-1 min-w-0">
+        {item.product ? (
+          <div className="flex gap-3 mb-3">
+            {item.product.image && (
+              <img src={item.product.image} alt="" className="w-12 h-12 rounded-lg object-contain bg-white border border-slate-100 flex-shrink-0" />
+            )}
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-slate-900 line-clamp-1 leading-snug">{item.product.title}</p>
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                {item.product.currentPrice && <span className="text-xs font-bold text-red-600">{item.product.currentPrice}</span>}
+                {item.product.originalPrice && <span className="text-xs text-slate-400 line-through">{item.product.originalPrice}</span>}
+                {item.product.discount && <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full">{item.product.discount.replace("-", "")} OFF</span>}
+              </div>
+            </div>
+          </div>
+        ) : item.status === "scraping" ? (
+          <p className="text-sm text-slate-500 mb-3 truncate">Fetching product…</p>
+        ) : item.status === "error" ? (
+          <div className="mb-3">
+            <p className="text-xs text-red-500 font-medium">Failed to scrape</p>
+            <p className="text-xs text-slate-400 truncate mt-0.5">{item.url}</p>
+            {item.error && <p className="text-xs text-red-400 mt-0.5">{item.error}</p>}
+          </div>
+        ) : (
+          <p className="text-xs text-slate-400 mb-3 truncate">{item.url}</p>
+        )}
+
+        {item.image && (
+          <div className="mb-3 rounded-xl overflow-hidden border border-slate-200 w-48">
+            <img src={item.image} alt="" className="w-full block" />
+          </div>
+        )}
+
+        {(item.status === "ready" || (item.status === "error" && item.product)) && (
+          <div className="flex items-center gap-2">
+            <select value={item.selectedStyle} onChange={e => onStyleChange(e.target.value as TemplateStyle)}
+              className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400">
+              {visibleStyles.map(s => <option key={s.id} value={s.id}>{s.emoji} {s.label}</option>)}
+            </select>
+            <button onClick={onGenerate}
+              className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+              Generate
+            </button>
+          </div>
+        )}
+        {item.status === "generated" && (
+          <div className="flex items-center gap-2">
+            <select value={item.selectedStyle} onChange={e => onStyleChange(e.target.value as TemplateStyle)}
+              className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400">
+              {visibleStyles.map(s => <option key={s.id} value={s.id}>{s.emoji} {s.label}</option>)}
+            </select>
+            <button onClick={onGenerate}
+              className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
+              Regenerate
+            </button>
+            <button onClick={onDownload}
+              className="bg-slate-900 hover:bg-slate-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
+              Download
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 interface ToastMsg { id: string; message: string; type: "success" | "error" | "info"; }
 
 export default function Home() {
@@ -180,6 +340,14 @@ export default function Home() {
   const [savedPreview, setSavedPreview] = useState<DealPost | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
+  const [priceHistory, setPriceHistory] = useState<PriceHistoryData | null>(null);
+  const [priceHistoryLoading, setPriceHistoryLoading] = useState(false);
+  const [bulkUrls, setBulkUrls] = useState("");
+  const [bulkQueue, setBulkQueue] = useState<BulkItem[]>([]);
+  const [bulkStyle, setBulkStyle] = useState<TemplateStyle>("simple");
+  const [bulkProcessing, setBulkProcessing] = useState(false);
+  const [bulkGeneratingAll, setBulkGeneratingAll] = useState(false);
+
   const visibleStyles = STYLES.filter(s => (permissions[`tpl_${s.id}` as keyof UserPermissions] as boolean | undefined) !== false);
 
   function showToast(message: string, type: ToastMsg["type"] = "success") {
@@ -187,6 +355,16 @@ export default function Home() {
     setToasts(prev => [...prev, { id, message, type }]);
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3500);
   }
+
+  const fetchPriceHistory = useCallback(async (productUrl: string) => {
+    setPriceHistory(null);
+    setPriceHistoryLoading(true);
+    try {
+      const res = await fetch(`/api/price-history?url=${encodeURIComponent(productUrl)}`);
+      if (res.ok) setPriceHistory(await res.json());
+    } catch { /* best-effort */ }
+    finally { setPriceHistoryLoading(false); }
+  }, []);
 
   const apiFetch = useCallback(async (url: string, options?: RequestInit): Promise<Response> => {
     const res = await fetch(url, options);
@@ -256,7 +434,7 @@ export default function Home() {
 
   async function handleScrape() {
     if (!url.trim()) return;
-    setScraping(true); setError(""); setProduct(null); setGeneratedImages({}); setCaption(""); setSavedPostIds({}); setShowModalEdit(false);
+    setScraping(true); setError(""); setProduct(null); setGeneratedImages({}); setCaption(""); setSavedPostIds({}); setShowModalEdit(false); setPriceHistory(null);
     try {
       const res = await apiFetch("/api/scrape", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url: url.trim(), cookies: amazonCookies.trim() || undefined }) });
       const data = await res.json();
@@ -264,6 +442,7 @@ export default function Home() {
       const enriched = enrichProduct(data);
       setProduct(enriched);
       buildCaption(enriched, url.trim());
+      fetchPriceHistory(url.trim());
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to scrape");
     } finally { setScraping(false); }
@@ -301,6 +480,62 @@ export default function Home() {
   async function handleGenerateAll() { if (!product) return; setGeneratingAll(true); await Promise.all(visibleStyles.map(s => generateOne(s.id, product!))); setGeneratingAll(false); }
 
   function downloadImage(src: string, style: string) { const a = document.createElement("a"); a.href = src; a.download = `deal-${style}-${Date.now()}.png`; a.click(); }
+
+  async function handleBulkProcess() {
+    const urls = bulkUrls.split("\n").map(u => u.trim()).filter(Boolean).slice(0, 10);
+    if (urls.length === 0) return;
+    const items: BulkItem[] = urls.map(url => ({
+      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      url,
+      status: "waiting" as const,
+      selectedStyle: bulkStyle,
+    }));
+    setBulkQueue(items);
+    setBulkProcessing(true);
+    for (let i = 0; i < items.length; i++) {
+      setBulkQueue(prev => prev.map((it, idx) => idx === i ? { ...it, status: "scraping" } : it));
+      try {
+        const res = await apiFetch("/api/scrape", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: items[i].url, cookies: amazonCookies.trim() || undefined }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        setBulkQueue(prev => prev.map((it, idx) => idx === i ? { ...it, status: "ready", product: enrichProduct(data) } : it));
+      } catch (e) {
+        setBulkQueue(prev => prev.map((it, idx) => idx === i ? { ...it, status: "error", error: e instanceof Error ? e.message : "Failed" } : it));
+      }
+    }
+    setBulkProcessing(false);
+  }
+
+  async function handleBulkGenerate(itemId: string) {
+    const item = bulkQueue.find(i => i.id === itemId);
+    if (!item?.product) return;
+    setBulkQueue(prev => prev.map(i => i.id === itemId ? { ...i, status: "generating" } : i));
+    try {
+      const res = await apiFetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ product: item.product, style: item.selectedStyle }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setBulkQueue(prev => prev.map(i => i.id === itemId ? { ...i, status: "generated", image: data.image } : i));
+      setTodayCount(c => c + 1);
+    } catch (e) {
+      setBulkQueue(prev => prev.map(i => i.id === itemId ? { ...i, status: "ready", error: e instanceof Error ? e.message : "Failed" } : i));
+    }
+  }
+
+  async function handleBulkGenerateAll() {
+    const ready = bulkQueue.filter(i => i.status === "ready" && i.product);
+    if (ready.length === 0) return;
+    setBulkGeneratingAll(true);
+    await Promise.all(ready.map(item => handleBulkGenerate(item.id)));
+    setBulkGeneratingAll(false);
+  }
 
   async function handleSave(style: TemplateStyle, imgSrc: string) {
     if (!product) return;
@@ -590,6 +825,10 @@ export default function Home() {
                 )}
               </button>
             )}
+            <button onClick={() => setActiveTab("bulk")}
+              className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${activeTab === "bulk" ? "bg-white text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-200"}`}>
+              Bulk
+            </button>
           </nav>
 
           {/* Right: usage + admin + user */}
@@ -722,6 +961,12 @@ export default function Home() {
                         {product.discount && <span className="bg-emerald-500 text-white font-bold px-3 py-1 rounded-lg text-sm">{product.discount.replace("-", "")} OFF</span>}
                         {product.couponDiscount && <span className="bg-amber-400 text-white font-bold px-3 py-1 rounded-lg text-sm">🎟️ {product.couponDiscount.replace("-", "")} Coupon</span>}
                         {product.emiOptions && product.emiOptions.length > 0 && <span className="bg-purple-500 text-white font-bold px-3 py-1 rounded-lg text-sm">No Cost EMI</span>}
+                        {priceHistoryLoading && (
+                          <span className="bg-white/20 text-white/60 text-xs px-2.5 py-1 rounded-lg animate-pulse">Checking history…</span>
+                        )}
+                        {priceHistory && !priceHistoryLoading && (
+                          <PriceBadge history={priceHistory} currentPriceStr={product.currentPrice || ""} />
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1087,6 +1332,97 @@ export default function Home() {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+      )}
+      {/* ══════════════════════════════════════════════════════════════
+          BULK MODE TAB
+      ══════════════════════════════════════════════════════════════ */}
+      {activeTab === "bulk" && (
+        <div className="max-w-6xl mx-auto px-6 py-8 space-y-5">
+          {/* URL input */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100">
+              <h2 className="text-sm font-bold text-slate-900">Bulk Deal Generator</h2>
+              <p className="text-xs text-slate-500 mt-0.5">Paste up to 10 Amazon URLs, one per line — they&apos;ll be fetched sequentially</p>
+            </div>
+            <div className="p-6 space-y-4">
+              <textarea
+                value={bulkUrls}
+                onChange={e => setBulkUrls(e.target.value)}
+                placeholder={"https://www.amazon.in/dp/B0...\nhttps://www.amazon.in/dp/B0...\nhttps://www.amazon.in/dp/B0..."}
+                rows={5}
+                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none bg-slate-50 text-slate-800 placeholder-slate-400"
+              />
+              <div className="flex items-center gap-3">
+                <button onClick={handleBulkProcess} disabled={!bulkUrls.trim() || bulkProcessing}
+                  className="bg-blue-600 hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 text-white px-5 py-2.5 rounded-xl font-semibold text-sm transition-all shadow-sm flex items-center gap-2">
+                  {bulkProcessing ? (
+                    <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin flex-shrink-0"></span> Processing…</>
+                  ) : (
+                    <><svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/></svg> Fetch All Products</>
+                  )}
+                </button>
+                <span className="text-xs text-slate-400">
+                  {bulkUrls.split("\n").filter(l => l.trim()).length} URL{bulkUrls.split("\n").filter(l => l.trim()).length !== 1 ? "s" : ""} · max 10
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Queue */}
+          {bulkQueue.length > 0 && (
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between flex-wrap gap-3">
+                <div>
+                  <h2 className="text-sm font-bold text-slate-900">Queue — {bulkQueue.length} item{bulkQueue.length !== 1 ? "s" : ""}</h2>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {bulkQueue.filter(i => i.status === "ready").length} ready ·{" "}
+                    {bulkQueue.filter(i => i.status === "generated").length} generated ·{" "}
+                    {bulkQueue.filter(i => i.status === "error").length} failed
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <select value={bulkStyle}
+                    onChange={e => { const s = e.target.value as TemplateStyle; setBulkStyle(s); setBulkQueue(prev => prev.map(i => ({ ...i, selectedStyle: s }))); }}
+                    className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400">
+                    {visibleStyles.map(s => <option key={s.id} value={s.id}>{s.emoji} {s.label}</option>)}
+                  </select>
+                  {bulkQueue.some(i => i.status === "ready") && (
+                    <button onClick={handleBulkGenerateAll} disabled={bulkGeneratingAll}
+                      className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:from-slate-200 disabled:to-slate-200 disabled:text-slate-400 text-white px-5 py-2 rounded-xl font-semibold text-sm transition-all shadow-sm flex items-center gap-2">
+                      {bulkGeneratingAll ? (
+                        <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin flex-shrink-0"></span> Generating…</>
+                      ) : (
+                        <><svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg> Generate All Ready</>
+                      )}
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div className="divide-y divide-slate-100">
+                {bulkQueue.map(item => (
+                  <BulkItemRow
+                    key={item.id}
+                    item={item}
+                    onGenerate={() => handleBulkGenerate(item.id)}
+                    onStyleChange={style => setBulkQueue(prev => prev.map(i => i.id === item.id ? { ...i, selectedStyle: style } : i))}
+                    onDownload={() => item.image && downloadImage(item.image, item.selectedStyle)}
+                    visibleStyles={visibleStyles}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {bulkQueue.length === 0 && (
+            <div className="text-center py-16">
+              <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 12h.007v.008H3.75V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm-.375 5.25h.007v.008H3.75v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"/></svg>
+              </div>
+              <p className="text-slate-600 font-semibold">Paste URLs above to start</p>
+              <p className="text-slate-400 text-sm mt-1">Products will be fetched one by one, then you can generate images for all</p>
             </div>
           )}
         </div>
