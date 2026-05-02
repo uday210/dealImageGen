@@ -434,6 +434,7 @@ export default function Home() {
   const [savedPreview, setSavedPreview] = useState<DealPost | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
+  const [animated, setAnimated] = useState(false);
   const [priceHistory, setPriceHistory] = useState<PriceHistoryData | null>(null);
   const [priceHistoryLoading, setPriceHistoryLoading] = useState(false);
   const [bulkUrls, setBulkUrls] = useState("");
@@ -560,20 +561,20 @@ export default function Home() {
   const generateOne = useCallback(async (style: TemplateStyle, prod: ProductData) => {
     setGeneratingStyles(prev => new Set(prev).add(style));
     try {
-      const res = await apiFetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ product: prod, style }) });
+      const res = await apiFetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ product: prod, style, animated }) });
       const data = await res.json();
       if (res.ok) { setGeneratedImages(prev => ({ ...prev, [style]: data.image })); setTodayCount(c => c + 1); return data.image as string; }
       else if (res.status === 429) setError(data.error);
     } catch {}
     finally { setGeneratingStyles(prev => { const n = new Set(prev); n.delete(style); return n; }); }
     return null;
-  }, [apiFetch]);
+  }, [apiFetch, animated]);
 
   async function handleGenerate(style: TemplateStyle) { if (!product) return; setSelectedStyle(style); await generateOne(style, product); }
   async function handleRegenerate(style: TemplateStyle) { if (!product) return; setGeneratedImages(prev => { const n = { ...prev }; delete n[style]; return n; }); await generateOne(style, product); }
   async function handleGenerateAll() { if (!product) return; setGeneratingAll(true); await Promise.all(visibleStyles.map(s => generateOne(s.id, product!))); setGeneratingAll(false); }
 
-  function downloadImage(src: string, style: string) { const a = document.createElement("a"); a.href = src; a.download = `deal-${style}-${Date.now()}.png`; a.click(); }
+  function downloadImage(src: string, style: string) { const a = document.createElement("a"); a.href = src; a.download = `deal-${style}-${Date.now()}.${src.startsWith("data:image/gif") ? "gif" : "png"}`; a.click(); }
 
   async function handleBulkProcess() {
     const urls = bulkUrls.split("\n").map(u => u.trim()).filter(Boolean).slice(0, 10);
@@ -1100,21 +1101,37 @@ export default function Home() {
           {/* ── Templates ───────────────────────────────────────────── */}
           {product && (
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between gap-3">
                 <div>
                   <h2 className="text-sm font-bold text-slate-900">Choose a Template</h2>
                   <p className="text-xs text-slate-500 mt-0.5">
                     {generatedCount > 0 ? `${generatedCount} of ${visibleStyles.length} generated` : `${visibleStyles.length} styles available`}
                   </p>
                 </div>
-                <button onClick={handleGenerateAll} disabled={generatingAll || visibleStyles.length === 0}
-                  className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:from-slate-200 disabled:to-slate-200 disabled:text-slate-400 text-white px-5 py-2.5 rounded-xl font-semibold text-sm transition-all shadow-sm flex items-center gap-2">
-                  {generatingAll ? (
-                    <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin flex-shrink-0"></span> Generating…</>
-                  ) : (
-                    <><svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg> Generate All {visibleStyles.length}</>
-                  )}
-                </button>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {/* Animated GIF toggle */}
+                  <button
+                    onClick={() => { setAnimated(v => !v); setGeneratedImages({}); }}
+                    title={animated ? "Switch to static PNG" : "Switch to animated GIF (shimmer effect, ~20s)"}
+                    className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl border transition-all ${
+                      animated
+                        ? "bg-purple-600 border-purple-600 text-white shadow-sm shadow-purple-200"
+                        : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
+                    }`}>
+                    <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 010 1.972l-11.54 6.347a1.125 1.125 0 01-1.667-.986V5.653z"/>
+                    </svg>
+                    {animated ? "GIF" : "PNG"}
+                  </button>
+                  <button onClick={handleGenerateAll} disabled={generatingAll || visibleStyles.length === 0}
+                    className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:from-slate-200 disabled:to-slate-200 disabled:text-slate-400 text-white px-5 py-2.5 rounded-xl font-semibold text-sm transition-all shadow-sm flex items-center gap-2">
+                    {generatingAll ? (
+                      <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin flex-shrink-0"></span> Generating…</>
+                    ) : (
+                      <><svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg> Generate All {visibleStyles.length}</>
+                    )}
+                  </button>
+                </div>
               </div>
 
               <div className="p-6">

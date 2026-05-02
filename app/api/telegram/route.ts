@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { postToTelegram } from "@/lib/telegram";
+import { postToTelegram, sendAnimation } from "@/lib/telegram";
 import { requireActiveSession } from "@/lib/requireActiveSession";
 
 export async function POST(req: NextRequest) {
@@ -16,10 +16,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Bot token and chat ID required" }, { status: 400 });
     }
 
+    const isGif = imageBase64.startsWith("data:image/gif;base64,");
     const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "");
     const imageBuffer = Buffer.from(base64Data, "base64");
 
-    const result = await postToTelegram(token, channel, imageBuffer, caption);
+    const result = isGif
+      ? await sendAnimation(token, channel, imageBuffer, caption)
+      : await postToTelegram(token, channel, imageBuffer, caption);
     if (!result.ok) {
       return NextResponse.json(
         { error: result.message || "Telegram rejected the request", raw: result.raw },

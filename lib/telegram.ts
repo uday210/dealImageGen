@@ -19,3 +19,24 @@ export async function postToTelegram(
   const json = await res.json();
   return { ok: json.ok, message: json.description, raw: json };
 }
+
+export async function sendAnimation(
+  botToken: string,
+  chatId: string,
+  gifBuffer: Buffer,
+  caption: string
+): Promise<{ ok: boolean; message?: string; raw?: unknown }> {
+  const form = new FormData();
+  const blob = new Blob([new Uint8Array(gifBuffer)], { type: "image/gif" });
+  form.append("chat_id", chatId);
+  form.append("animation", blob, "deal.gif");
+  form.append("caption", caption.replace(/<[^>]*>/g, ""));
+
+  const res = await fetch(
+    `https://api.telegram.org/bot${botToken}/sendAnimation`,
+    { method: "POST", body: form }
+  );
+
+  const json = await res.json();
+  return { ok: json.ok, message: json.description, raw: json };
+}

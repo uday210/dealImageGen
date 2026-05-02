@@ -8,7 +8,7 @@ export async function POST(req: NextRequest) {
   if (session.errorResponse) return session.errorResponse;
 
   try {
-    const { product, style }: { product: ProductData; style: TemplateStyle } = await req.json();
+    const { product, style, animated }: { product: ProductData; style: TemplateStyle; animated?: boolean } = await req.json();
     if (!product) return NextResponse.json({ error: "Product data required" }, { status: 400 });
 
     const { supabase, user } = session;
@@ -40,9 +40,10 @@ export async function POST(req: NextRequest) {
       await supabase.from("generation_logs").insert({ user_id: user.id });
     }
 
-    const imageBuffer = await generateImage(product, style || "simple");
+    const imageBuffer = await generateImage(product, style || "simple", animated);
     const base64 = imageBuffer.toString("base64");
-    return NextResponse.json({ image: `data:image/png;base64,${base64}` });
+    const mimeType = animated ? "image/gif" : "image/png";
+    return NextResponse.json({ image: `data:${mimeType};base64,${base64}` });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Image generation failed";
     return NextResponse.json({ error: msg }, { status: 500 });

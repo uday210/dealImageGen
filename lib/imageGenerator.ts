@@ -1,4 +1,17 @@
 import puppeteer from "puppeteer-core";
+import { PNG } from "pngjs";
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const GIFEncoder = require("gif-encoder-2") as new (
+  width: number, height: number, algorithm?: string, useOptimizer?: boolean
+) => {
+  setRepeat(n: number): void;
+  setDelay(ms: number): void;
+  setQuality(q: number): void;
+  start(): void;
+  addFrame(pixels: Buffer): void;
+  finish(): void;
+  out: { getData(): Uint8Array };
+};
 import { ProductData, PriceRow } from "./scraper";
 
 const CHROME_PATH =
@@ -564,7 +577,8 @@ const TEMPLATES: Record<TemplateStyle, (p: ProductData) => string> = {
 
 export async function generateImage(
   product: ProductData,
-  style: TemplateStyle = "simple"
+  style: TemplateStyle = "simple",
+  animated = false
 ): Promise<Buffer> {
   const browser = await puppeteer.launch({
     executablePath: CHROME_PATH,
@@ -585,12 +599,75 @@ export async function generateImage(
         + (hasBankOffers ? 85 : 0)
       : 500;
     const width = isDetailed ? 1000 : 900;
-    await page.setViewport({ width, height, deviceScaleFactor: 2 });
+
+    // Animated GIF uses scale=1 to keep file size manageable; static PNG uses scale=2 for retina quality
+    await page.setViewport({ width, height, deviceScaleFactor: animated ? 1 : 2 });
     const html = TEMPLATES[style](product);
     await page.setContent(html, { waitUntil: "networkidle0", timeout: 20000 });
     await new Promise((r) => setTimeout(r, 1500));
-    const screenshot = await page.screenshot({ type: "png", fullPage: false });
-    return Buffer.from(screenshot);
+
+    if (!animated) {
+      const screenshot = await page.screenshot({ type: "png", fullPage: false });
+      return Buffer.from(screenshot);
+    }
+
+    // ── Animated GIF: shimmer sweep ────────────────────────────────────────
+    await page.evaluate(() => {
+      const style = document.createElement("style");
+      style.textContent = `
+        #shimmer-overlay { position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:9999; }
+        #shimmer-beam {
+          position:absolute;top:-50%;width:22%;height:200%;
+          background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,0) 15%,rgba(255,255,255,0.38) 50%,rgba(255,255,255,0) 85%,transparent 100%);
+          transform:skewX(-18deg);left:-28%;
+        }
+      `;
+      document.head.appendChild(style);
+      const overlay = document.createElement("div");
+      overlay.id = "shimmer-overlay";
+      const beam = document.createElement("div");
+      beam.id = "shimmer-beam";
+      overlay.appendChild(beam);
+      document.body.appendChild(overlay);
+    });
+
+    const SWEEP_FRAMES = 12;
+    const encoder = new GIFEncoder(width, height, "octree", false);
+    encoder.setRepeat(0);
+    encoder.setQuality(10);
+    encoder.start();
+
+    const captureFrame = async (delayMs: number) => {
+      encoder.setDelay(delayMs);
+      const buf = Buffer.from(await page.screenshot({ type: "png", fullPage: false }));
+      const png = PNG.sync.read(buf);
+      encoder.addFrame(png.data);
+    };
+
+    // 2 static frames before sweep
+    await captureFrame(500);
+    await captureFrame(500);
+
+    // Sweep frames: beam travels from left edge to right edge
+    for (let i = 0; i < SWEEP_FRAMES; i++) {
+      const pct = -28 + (i / (SWEEP_FRAMES - 1)) * 128; // -28% → 100%
+      await page.evaluate((left: string) => {
+        const beam = document.getElementById("shimmer-beam");
+        if (beam) beam.style.left = left;
+      }, `${pct.toFixed(1)}%`);
+      await captureFrame(70);
+    }
+
+    // 2 static frames after sweep (beam off-screen right)
+    await page.evaluate(() => {
+      const beam = document.getElementById("shimmer-beam");
+      if (beam) beam.style.left = "110%";
+    });
+    await captureFrame(500);
+    await captureFrame(500);
+
+    encoder.finish();
+    return Buffer.from(encoder.out.getData());
   } finally {
     await browser.close();
   }
